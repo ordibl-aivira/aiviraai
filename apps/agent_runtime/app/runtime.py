@@ -375,7 +375,7 @@ def evaluate_progress(state: AgentState) -> AgentState:
         }
         return state
 
-    if is_last_step or tool_status == "success":
+    if is_last_step and tool_status == "success":
         state["completed"] = True
         utterance = state.get("working_context", {}).get("utterance", "")
         customer = state.get("working_context", {}).get("customer_name", "customer")

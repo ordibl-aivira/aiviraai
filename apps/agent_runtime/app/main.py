@@ -84,13 +84,21 @@ def execute_task(request: TaskRequest) -> TaskResponse:
     )
 
     completed = state.get("completed", False)
+    is_escalated = state.get("evaluation", {}).get("reason") == "awaiting_human_approval"
+    if completed:
+        status = TaskStatus.COMPLETED
+    elif is_escalated:
+        status = TaskStatus.ESCALATED
+    else:
+        status = TaskStatus.FAILED
+
     task_record = {
         "task_id": task_id,
         "organization_id": request.organization_id,
         "agent_id": request.agent_id,
         "task_type": request.task_type,
         "goal": request.goal,
-        "status": TaskStatus.COMPLETED.value if completed else TaskStatus.FAILED.value,
+        "status": status.value,
         "result": state.get("result", {}),
         "plan": state.get("plan", []),
         "steps_executed": state.get("steps_executed", 0),
@@ -101,7 +109,7 @@ def execute_task(request: TaskRequest) -> TaskResponse:
 
     return TaskResponse(
         task_id=task_id,
-        status=TaskStatus.COMPLETED if completed else TaskStatus.FAILED,
+        status=status,
         result=state.get("result", {}),
         plan=state.get("plan", []),
         steps_executed=state.get("steps_executed", 0),
@@ -136,7 +144,13 @@ def resume_task(task_id: str) -> dict:
     )
 
     completed = state.get("completed", False)
-    task["status"] = TaskStatus.COMPLETED.value if completed else TaskStatus.FAILED.value
+    is_escalated = state.get("evaluation", {}).get("reason") == "awaiting_human_approval"
+    if completed:
+        task["status"] = TaskStatus.COMPLETED.value
+    elif is_escalated:
+        task["status"] = TaskStatus.ESCALATED.value
+    else:
+        task["status"] = TaskStatus.FAILED.value
     task["result"] = state.get("result", {})
     task["plan"] = state.get("plan", [])
     task["steps_executed"] = state.get("steps_executed", 0)

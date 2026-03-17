@@ -167,12 +167,18 @@ def get_workflow_tasks(workflow_id: str) -> dict:
 
 # ── Workflow Execution ──────────────────────────────────────────
 
-def _resolve_ready_steps(steps: List[dict], completed: set) -> List[dict]:
-    """Find steps whose dependencies are all satisfied."""
+def _resolve_ready_steps(steps: List[dict], completed: set, failed: set | None = None) -> List[dict]:
+    """Find steps whose dependencies are all satisfied and none have failed."""
+    failed = failed or set()
     ready = []
     for step in steps:
         deps = set(step.get("depends_on", []))
-        if step["step_id"] not in completed and deps.issubset(completed):
+        if (
+            step["step_id"] not in completed
+            and step["step_id"] not in failed
+            and deps.issubset(completed)
+            and not deps.intersection(failed)
+        ):
             ready.append(step)
     return ready
 
@@ -198,11 +204,12 @@ async def execute_workflow(workflow_id: str) -> dict:
 
     steps = wf["steps"]
     completed_steps: set = set()
+    failed_steps: set = set()
     step_results: Dict[str, dict] = {}
 
     # Walk the DAG
     while True:
-        ready = _resolve_ready_steps(steps, completed_steps)
+        ready = _resolve_ready_steps(steps, completed_steps, failed_steps)
         if not ready:
             break
 
@@ -254,12 +261,23 @@ async def execute_workflow(workflow_id: str) -> dict:
                 result = {"status": "failed", "error": "Agent runtime unavailable"}
 
             step_results[step["step_id"]] = result
-            completed_steps.add(step["step_id"])
+            if result.get("status") == "failed":
+                failed_steps.add(step["step_id"])
+            else:
+                completed_steps.add(step["step_id"])
 
-    all_done = len(completed_steps) == len(steps)
-    execution["status"] = WorkflowStatus.COMPLETED.value if all_done else WorkflowStatus.FAILED.value
+    has_failures = len(failed_steps) > 0
+    all_done = len(completed_steps) + len(failed_steps) >= len(steps) or (
+        len(completed_steps) == len(steps)
+    )
+    if has_failures:
+        execution["status"] = WorkflowStatus.FAILED.value
+    elif len(completed_steps) == len(steps):
+        execution["status"] = WorkflowStatus.COMPLETED.value
+    else:
+        execution["status"] = WorkflowStatus.FAILED.value
     execution["step_results"] = step_results
-    if all_done:
+    if execution["status"] == WorkflowStatus.COMPLETED.value:
         execution["completed_at"] = datetime.utcnow().isoformat()
 
     _executions[exec_id] = execution
