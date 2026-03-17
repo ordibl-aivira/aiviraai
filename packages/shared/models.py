@@ -404,6 +404,139 @@ class LoginRequest(BaseModel):
     password: str
 
 
+# ── Customer ───────────────────────────────────────────────────
+
+class CustomerCreate(BaseModel):
+    organization_id: str
+    external_ref: Optional[str] = None
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    email: Optional[str] = None
+    phone: Optional[str] = None
+    preferences: Dict[str, Any] = Field(default_factory=dict)
+    metadata: Dict[str, Any] = Field(default_factory=dict)
+
+
+class CustomerResponse(BaseModel):
+    id: str
+    organization_id: str
+    external_ref: Optional[str] = None
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    email: Optional[str] = None
+    phone: Optional[str] = None
+    preferences: Dict[str, Any]
+    metadata: Dict[str, Any]
+    created_at: datetime
+    updated_at: datetime
+
+
+class CustomerUpdate(BaseModel):
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    email: Optional[str] = None
+    phone: Optional[str] = None
+    preferences: Optional[Dict[str, Any]] = None
+    metadata: Optional[Dict[str, Any]] = None
+
+
+# ── Conversation ───────────────────────────────────────────────
+
+class ConversationCreate(BaseModel):
+    organization_id: str
+    customer_id: Optional[str] = None
+    channel: str  # voice | chat | email | api
+    external_id: Optional[str] = None
+
+
+class ConversationResponse(BaseModel):
+    id: str
+    organization_id: str
+    customer_id: Optional[str] = None
+    channel: str
+    external_id: Optional[str] = None
+    status: str
+    started_at: datetime
+    ended_at: Optional[datetime] = None
+
+
+class MessageCreate(BaseModel):
+    conversation_id: str
+    sender_type: str  # customer | agent | system
+    sender_id: Optional[str] = None
+    content: Optional[str] = None
+    content_json: Optional[Dict[str, Any]] = None
+
+
+class MessageResponse(BaseModel):
+    id: str
+    conversation_id: str
+    sender_type: str
+    sender_id: Optional[str] = None
+    content: Optional[str] = None
+    content_json: Optional[Dict[str, Any]] = None
+    created_at: datetime
+
+
+# ── Approval ───────────────────────────────────────────────────
+
+class ApprovalStatus(str, Enum):
+    PENDING = "pending"
+    APPROVED = "approved"
+    REJECTED = "rejected"
+
+
+class ApprovalCreate(BaseModel):
+    organization_id: str
+    task_id: str
+    requested_by_agent_id: Optional[str] = None
+    reason: Optional[str] = None
+
+
+class ApprovalResponse(BaseModel):
+    id: str
+    organization_id: str
+    task_id: str
+    requested_by_agent_id: Optional[str] = None
+    approver_user_id: Optional[str] = None
+    status: ApprovalStatus
+    reason: Optional[str] = None
+    decision_note: Optional[str] = None
+    created_at: datetime
+    decided_at: Optional[datetime] = None
+
+
+class ApprovalDecision(BaseModel):
+    status: ApprovalStatus  # approved | rejected
+    approver_user_id: str
+    decision_note: Optional[str] = None
+
+
+# ── Notification ───────────────────────────────────────────────
+
+class NotificationSendRequest(BaseModel):
+    organization_id: str
+    channel: str  # email | sms | push | whatsapp
+    to: str
+    subject: Optional[str] = None
+    body: str
+    template_id: Optional[str] = None
+    template_vars: Dict[str, Any] = Field(default_factory=dict)
+
+
+class NotificationResponse(BaseModel):
+    id: str
+    channel: str
+    to: str
+    status: str
+    created_at: datetime
+
+
+class TemplateRenderRequest(BaseModel):
+    template_id: str
+    variables: Dict[str, Any] = Field(default_factory=dict)
+
+
 # ── Event Bus ───────────────────────────────────────────────────
 
 class EventEnvelope(BaseModel):
@@ -414,6 +547,7 @@ class EventEnvelope(BaseModel):
     payload: Dict[str, Any]
     timestamp: datetime = Field(default_factory=datetime.utcnow)
     correlation_id: Optional[str] = None
+    trace_id: Optional[str] = None
 
 
 # ── Analytics ───────────────────────────────────────────────────

@@ -1,0 +1,28 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: worker
+  labels:
+    app: worker
+    {{- include "workforce-os.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.services.worker.replicas }}
+  selector:
+    matchLabels:
+      app: worker
+  template:
+    metadata:
+      labels:
+        app: worker
+    spec:
+      containers:
+        - name: worker
+          image: {{ include "workforce-os.image" (dict "Values" .Values "svc" "worker") }}
+          imagePullPolicy: {{ .Values.global.image.pullPolicy }}
+          env:
+            - name: PYTHONPATH
+              value: /app
+            - name: REDIS_URL
+              value: redis://redis:6379/0
+          resources:
+            {{- toYaml .Values.services.worker.resources | nindent 12 }}

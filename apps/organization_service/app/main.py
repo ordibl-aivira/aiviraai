@@ -1,14 +1,23 @@
-"""Organization Service — tenant and agent management for Workforce OS.
+"""Organization Service — tenant, agent, and customer management.
 
 Endpoints
 ---------
 GET   /health
+
 POST  /internal/organizations
+GET   /internal/organizations
 GET   /internal/organizations/{org_id}
+PATCH /internal/organizations/{org_id}
+
 POST  /internal/agents
 GET   /internal/agents
 GET   /internal/agents/{agent_id}
 PATCH /internal/agents/{agent_id}/status
+
+POST  /internal/customers
+GET   /internal/customers
+GET   /internal/customers/{customer_id}
+PATCH /internal/customers/{customer_id}
 """
 
 from __future__ import annotations
@@ -19,13 +28,20 @@ from uuid import uuid4
 
 from fastapi import FastAPI, HTTPException
 
-from packages.shared.models import AgentCreate, AgentStatus, OrganizationCreate
+from packages.shared.models import (
+    AgentCreate,
+    AgentStatus,
+    CustomerCreate,
+    CustomerUpdate,
+    OrganizationCreate,
+)
 
-app = FastAPI(title="Organization Service", version="0.1.0")
+app = FastAPI(title="Organization Service", version="0.2.0")
 
 # In-memory stores (replaced by Postgres in production)
 _organizations: Dict[str, dict] = {}
 _agents: Dict[str, dict] = {}
+_customers: Dict[str, dict] = {}
 
 
 @app.get("/health")
@@ -47,6 +63,8 @@ def create_organization(request: OrganizationCreate) -> dict:
         "industry": request.industry,
         "timezone": request.timezone,
         "settings": request.settings,
+        "plan": "starter",
+        "status": "active",
         "is_active": True,
         "created_at": now.isoformat(),
         "updated_at": now.isoformat(),
@@ -55,12 +73,34 @@ def create_organization(request: OrganizationCreate) -> dict:
     return org
 
 
+@app.get("/internal/organizations")
+def list_organizations() -> dict:
+    """List all organizations."""
+    results = list(_organizations.values())
+    return {"organizations": results, "total": len(results)}
+
+
 @app.get("/internal/organizations/{org_id}")
 def get_organization(org_id: str) -> dict:
     """Retrieve organization details."""
     org = _organizations.get(org_id)
     if not org:
         raise HTTPException(status_code=404, detail="Organization not found")
+    return org
+
+
+@app.patch("/internal/organizations/{org_id}")
+def update_organization(org_id: str, payload: dict) -> dict:
+    """Update organization fields."""
+    org = _organizations.get(org_id)
+    if not org:
+        raise HTTPException(status_code=404, detail="Organization not found")
+
+    allowed = {"name", "slug", "industry", "timezone", "settings", "plan", "status"}
+    for key, value in payload.items():
+        if key in allowed:
+            org[key] = value
+    org["updated_at"] = datetime.utcnow().isoformat()
     return org
 
 
@@ -123,3 +163,60 @@ def update_agent_status(agent_id: str, status: str) -> dict:
     agent["status"] = status
     agent["updated_at"] = datetime.utcnow().isoformat()
     return agent
+
+
+# ── Customers ───────────────────────────────────────────────────
+
+@app.post("/internal/customers")
+def create_customer(request: CustomerCreate) -> dict:
+    """Register a new customer for an organization."""
+    customer_id = f"cust_{uuid4().hex[:12]}"
+    now = datetime.utcnow()
+    customer = {
+        "id": customer_id,
+        "organization_id": request.organization_id,
+        "external_ref": request.external_ref,
+        "first_name": request.first_name,
+        "last_name": request.last_name,
+        "email": request.email,
+        "phone": request.phone,
+        "preferences": request.preferences,
+        "metadata": request.metadata,
+        "created_at": now.isoformat(),
+        "updated_at": now.isoformat(),
+    }
+    _customers[customer_id] = customer
+    return customer
+
+
+@app.get("/internal/customers")
+def list_customers(organization_id: str) -> dict:
+    """List all customers for an organization."""
+    results = [
+        c for c in _customers.values()
+        if c["organization_id"] == organization_id
+    ]
+    return {"customers": results, "total": len(results)}
+
+
+@app.get("/internal/customers/{customer_id}")
+def get_customer(customer_id: str) -> dict:
+    """Retrieve a single customer."""
+    customer = _customers.get(customer_id)
+    if not customer:
+        raise HTTPException(status_code=404, detail="Customer not found")
+    return customer
+
+
+@app.patch("/internal/customers/{customer_id}")
+def update_customer(customer_id: str, request: CustomerUpdate) -> dict:
+    """Update customer fields."""
+    customer = _customers.get(customer_id)
+    if not customer:
+        raise HTTPException(status_code=404, detail="Customer not found")
+
+    update_data = request.model_dump(exclude_none=True)
+    for key, value in update_data.items():
+        customer[key] = value
+    customer["updated_at"] = datetime.utcnow().isoformat()
+    return customer

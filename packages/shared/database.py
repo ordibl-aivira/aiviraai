@@ -272,6 +272,7 @@ class AgentEpisode(Base):
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
 
     agent = relationship("Agent", back_populates="episodes")
+    customer = relationship("Customer", back_populates="episodes")
 
     __table_args__ = (
         Index("ix_episodes_org_agent", "organization_id", "agent_id"),
@@ -330,6 +331,126 @@ class Procedure(Base):
     __table_args__ = (
         UniqueConstraint("organization_id", "procedure_id", "version", name="uq_procedure_version"),
         Index("ix_procedures_trigger", "trigger"),
+    )
+
+
+# ── Customers ──────────────────────────────────────────────────
+
+class Customer(Base):
+    __tablename__ = "customers"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False, index=True)
+    external_ref = Column(String(256), nullable=True)
+    first_name = Column(String(256), nullable=True)
+    last_name = Column(String(256), nullable=True)
+    email = Column(String(320), nullable=True)
+    phone = Column(String(64), nullable=True)
+    preferences = Column(JSONB, nullable=False, default=dict)
+    metadata_ = Column("metadata", JSONB, nullable=False, default=dict)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    conversations = relationship("Conversation", back_populates="customer")
+    episodes = relationship("AgentEpisode", back_populates="customer")
+
+    __table_args__ = (
+        Index("ix_customers_org_email", "organization_id", "email"),
+    )
+
+
+# ── Conversations & Messages ──────────────────────────────────
+
+class Conversation(Base):
+    __tablename__ = "conversations"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False, index=True)
+    customer_id = Column(UUID(as_uuid=True), ForeignKey("customers.id"), nullable=True, index=True)
+    channel = Column(String(64), nullable=False)  # voice | chat | email | api
+    external_id = Column(String(256), nullable=True)
+    status = Column(String(32), nullable=False, default="open")
+    started_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    ended_at = Column(DateTime, nullable=True)
+
+    customer = relationship("Customer", back_populates="conversations")
+    messages = relationship("Message", back_populates="conversation", order_by="Message.created_at")
+
+    __table_args__ = (
+        Index("ix_conversations_org_status", "organization_id", "status"),
+    )
+
+
+class Message(Base):
+    __tablename__ = "messages"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    conversation_id = Column(UUID(as_uuid=True), ForeignKey("conversations.id"), nullable=False, index=True)
+    sender_type = Column(String(32), nullable=False)  # customer | agent | system
+    sender_id = Column(UUID(as_uuid=True), nullable=True)
+    content = Column(Text, nullable=True)
+    content_json = Column(JSONB, nullable=True)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+    conversation = relationship("Conversation", back_populates="messages")
+
+
+# ── Task Events ────────────────────────────────────────────────
+
+class TaskEvent(Base):
+    __tablename__ = "task_events"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    task_id = Column(UUID(as_uuid=True), ForeignKey("tasks.id"), nullable=False, index=True)
+    event_type = Column(String(128), nullable=False)
+    payload = Column(JSONB, nullable=False, default=dict)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+    task = relationship("Task")
+
+    __table_args__ = (
+        Index("ix_task_events_task_type", "task_id", "event_type"),
+    )
+
+
+# ── Approvals ──────────────────────────────────────────────────
+
+class Approval(Base):
+    __tablename__ = "approvals"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False, index=True)
+    task_id = Column(UUID(as_uuid=True), ForeignKey("tasks.id"), nullable=False, index=True)
+    requested_by_agent_id = Column(UUID(as_uuid=True), ForeignKey("agents.id"), nullable=True)
+    approver_user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    status = Column(String(32), nullable=False, default="pending")  # pending | approved | rejected
+    reason = Column(Text, nullable=True)
+    decision_note = Column(Text, nullable=True)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    decided_at = Column(DateTime, nullable=True)
+
+    __table_args__ = (
+        Index("ix_approvals_org_status", "organization_id", "status"),
+    )
+
+
+# ── Tools ──────────────────────────────────────────────────────
+
+class Tool(Base):
+    __tablename__ = "tools"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=True, index=True)
+    name = Column(String(256), nullable=False)
+    tool_type = Column(String(128), nullable=False)  # crm | calendar | billing | email | ...
+    auth_config = Column(JSONB, nullable=False, default=dict)
+    endpoint = Column(String(512), nullable=True)
+    enabled = Column(Boolean, nullable=False, default=True)
+    metadata_ = Column("metadata", JSONB, nullable=False, default=dict)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+    __table_args__ = (
+        Index("ix_tools_org_type", "organization_id", "tool_type"),
     )
 
 

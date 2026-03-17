@@ -26,6 +26,14 @@ qdrant:
   image: qdrant/qdrant:v1.11.3
   storage: 5Gi
 
+nats:
+  enabled: true
+  image: nats:2.10-alpine
+
+otelCollector:
+  enabled: true
+  image: otel/opentelemetry-collector-contrib:0.96.0
+
 # ── Application services ─────────────────────────────────────
 services:
   apiGateway:
@@ -110,3 +118,4 @@ ingress:
   host: api.workforce-os.local
   className: nginx
   annotations: {}
+  webhookPath: /webhooks

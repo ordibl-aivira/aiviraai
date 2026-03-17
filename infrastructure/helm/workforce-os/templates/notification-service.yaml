@@ -1,0 +1,45 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: notification-service
+  labels:
+    app: notification-service
+    {{- include "workforce-os.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.services.notificationService.replicas }}
+  selector:
+    matchLabels:
+      app: notification-service
+  template:
+    metadata:
+      labels:
+        app: notification-service
+    spec:
+      containers:
+        - name: notification-service
+          image: {{ include "workforce-os.image" (dict "Values" .Values "svc" "notification-service") }}
+          imagePullPolicy: {{ .Values.global.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.services.notificationService.port }}
+          env:
+            - name: PYTHONPATH
+              value: /app
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: {{ .Values.services.notificationService.port }}
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            {{- toYaml .Values.services.notificationService.resources | nindent 12 }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: notification-service
+spec:
+  selector:
+    app: notification-service
+  ports:
+    - port: {{ .Values.services.notificationService.port }}
+      targetPort: {{ .Values.services.notificationService.port }}

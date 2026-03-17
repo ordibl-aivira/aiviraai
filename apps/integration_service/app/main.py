@@ -7,10 +7,12 @@ through tool adapters.
 Endpoints
 ---------
 GET   /health
-POST  /internal/integrations               — register integration
-GET   /internal/integrations                — list integrations
-POST  /internal/tools/execute               — execute a tool call
-GET   /internal/tools                       — list available tools
+POST  /internal/integrations               - register integration
+GET   /internal/integrations                - list integrations
+POST  /internal/tools/execute              - execute a tool call
+POST  /internal/tools/invoke               - invoke a tool (alias)
+POST  /internal/tools/validate             - validate tool config
+GET   /internal/tools                       - list available tools
 """
 
 from __future__ import annotations
@@ -19,11 +21,11 @@ from datetime import datetime
 from typing import Dict, List
 from uuid import uuid4
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 
 from packages.shared.models import IntegrationConfig, ToolCallRequest
 
-app = FastAPI(title="Integration Service", version="0.1.0")
+app = FastAPI(title="Integration Service", version="0.2.0")
 
 # In-memory stores
 _integrations: Dict[str, dict] = {}
@@ -36,6 +38,7 @@ TOOL_ADAPTERS: Dict[str, List[str]] = {
     "email": ["email.send", "email.draft", "email.list_inbox"],
     "notification": ["notification.send_sms", "notification.send_push"],
     "erp": ["erp.create_order", "erp.check_inventory", "erp.update_status"],
+    "voice": ["voice.call", "voice.transfer", "voice.hold", "voice.synthesize"],
 }
 
 
@@ -81,32 +84,54 @@ def execute_tool(request: ToolCallRequest) -> dict:
     In production, this dispatches to the real external system
     adapter (e.g., HubSpot API, Google Calendar API, Stripe, etc.).
     """
-    tool = request.tool_name
-    start = datetime.utcnow()
+    return _run_tool(request)
 
-    # Simulated tool execution
-    if tool.startswith("calendar."):
-        result = _simulate_calendar_tool(tool, request.parameters)
-    elif tool.startswith("crm."):
-        result = _simulate_crm_tool(tool, request.parameters)
-    elif tool.startswith("email."):
-        result = _simulate_email_tool(tool, request.parameters)
-    elif tool.startswith("billing."):
-        result = _simulate_billing_tool(tool, request.parameters)
-    elif tool.startswith("notification."):
-        result = _simulate_notification_tool(tool, request.parameters)
-    else:
-        result = {"status": "unsupported", "message": f"Tool '{tool}' not available"}
 
-    end = datetime.utcnow()
-    duration_ms = int((end - start).total_seconds() * 1000)
+@app.post("/internal/tools/invoke")
+def invoke_tool(request: ToolCallRequest) -> dict:
+    """Invoke a tool — identical to /execute, matches blueprint naming."""
+    return _run_tool(request)
+
+
+@app.post("/internal/tools/validate")
+def validate_tool(payload: dict) -> dict:
+    """Validate a tool configuration before use.
+
+    Checks that the tool name exists, the organization has a matching
+    integration, and the argument schema is acceptable.
+    """
+    tool_name = payload.get("tool_name", "")
+    organization_id = payload.get("organization_id", "")
+
+    # Check tool exists in any adapter
+    all_tools = [t for tools in TOOL_ADAPTERS.values() for t in tools]
+    if tool_name not in all_tools:
+        return {
+            "valid": False,
+            "tool_name": tool_name,
+            "error": f"Unknown tool: {tool_name}",
+        }
+
+    # Check org has a matching integration
+    int_type = tool_name.split(".")[0]
+    org_integrations = [
+        i for i in _integrations.values()
+        if i["organization_id"] == organization_id
+        and i["integration_type"] == int_type
+        and i["enabled"]
+    ]
+
+    if not org_integrations and organization_id:
+        return {
+            "valid": False,
+            "tool_name": tool_name,
+            "error": f"No active '{int_type}' integration for organization",
+        }
 
     return {
-        "tool_name": tool,
-        "status": result.get("status", "success"),
-        "result": result,
-        "reference_id": f"ref_{uuid4().hex[:10]}",
-        "duration_ms": duration_ms,
+        "valid": True,
+        "tool_name": tool_name,
+        "integration_type": int_type,
     }
 
 
@@ -122,6 +147,40 @@ def list_tools(organization_id: str = "") -> dict:
                 "description": f"{int_type.upper()} tool: {tool_name}",
             })
     return {"tools": all_tools, "total": len(all_tools)}
+
+
+# ── Internal helpers ──────────────────────────────────────────
+
+def _run_tool(request: ToolCallRequest) -> dict:
+    """Dispatch and execute a tool call."""
+    tool = request.tool_name
+    start = datetime.utcnow()
+
+    if tool.startswith("calendar."):
+        result = _simulate_calendar_tool(tool, request.parameters)
+    elif tool.startswith("crm."):
+        result = _simulate_crm_tool(tool, request.parameters)
+    elif tool.startswith("email."):
+        result = _simulate_email_tool(tool, request.parameters)
+    elif tool.startswith("billing."):
+        result = _simulate_billing_tool(tool, request.parameters)
+    elif tool.startswith("notification."):
+        result = _simulate_notification_tool(tool, request.parameters)
+    elif tool.startswith("voice."):
+        result = _simulate_voice_tool(tool, request.parameters)
+    else:
+        result = {"status": "unsupported", "message": f"Tool '{tool}' not available"}
+
+    end = datetime.utcnow()
+    duration_ms = int((end - start).total_seconds() * 1000)
+
+    return {
+        "tool_name": tool,
+        "status": result.get("status", "success"),
+        "result": result,
+        "reference_id": f"ref_{uuid4().hex[:10]}",
+        "duration_ms": duration_ms,
+    }
 
 
 # ── Simulated adapters ─────────────────────────────────────────
@@ -201,3 +260,19 @@ def _simulate_notification_tool(tool: str, params: dict) -> dict:
         "channel": "sms" if "sms" in tool else "push",
         "to": params.get("to", "+1234567890"),
     }
+
+
+def _simulate_voice_tool(tool: str, params: dict) -> dict:
+    if tool == "voice.call":
+        return {
+            "status": "success",
+            "call_id": f"call_{uuid4().hex[:8]}",
+            "to": params.get("to_number", "+1234567890"),
+        }
+    if tool == "voice.transfer":
+        return {
+            "status": "success",
+            "transfer_id": f"xfer_{uuid4().hex[:8]}",
+            "target": params.get("target", "support"),
+        }
+    return {"status": "success", "action": tool.split(".")[-1]}

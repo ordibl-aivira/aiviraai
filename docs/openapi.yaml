@@ -59,6 +59,10 @@ tags:
     description: Metrics & observability
   - name: Notifications
     description: Outbound notifications
+  - name: Customers
+    description: Customer management
+  - name: Approvals
+    description: Human-in-the-loop approval gates
 
 paths:
   # ── Health ──────────────────────────────────────────────────
@@ -75,7 +79,125 @@ paths:
               schema:
                 $ref: "#/components/schemas/HealthResponse"
 
+  # ── Auth ────────────────────────────────────────────────────
+  /v1/auth/login:
+    post:
+      tags: [Auth]
+      summary: Authenticate user
+      operationId: login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email:
+                  type: string
+                password:
+                  type: string
+      responses:
+        "200":
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token:
+                    type: string
+                  user_id:
+                    type: string
+                  organization_id:
+                    type: string
+        "401":
+          description: Invalid credentials
+
+  /v1/auth/register:
+    post:
+      tags: [Auth]
+      summary: Register new user
+      operationId: register
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password, full_name, organization_name]
+              properties:
+                email:
+                  type: string
+                password:
+                  type: string
+                full_name:
+                  type: string
+                organization_name:
+                  type: string
+      responses:
+        "200":
+          description: Registration successful
+
+  /v1/me:
+    get:
+      tags: [Auth]
+      summary: Get current user profile
+      operationId: getMe
+      responses:
+        "200":
+          description: Current user profile
+
   # ── Tasks ───────────────────────────────────────────────────
+  /v1/tasks:
+    get:
+      tags: [Tasks]
+      summary: List tasks for an organization
+      operationId: listTasks
+      parameters:
+        - name: organization_id
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of tasks
+
+  /v1/tasks/{task_id}:
+    get:
+      tags: [Tasks]
+      summary: Get task state and details
+      operationId: getTask
+      parameters:
+        - name: task_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Task details
+        "404":
+          description: Task not found
+
+  /v1/tasks/{task_id}/retry:
+    post:
+      tags: [Tasks]
+      summary: Retry a failed task
+      operationId: retryTask
+      parameters:
+        - name: task_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Task retried
+        "404":
+          description: Task not found
+
   /v1/tasks/execute:
     post:
       tags: [Tasks]
@@ -114,6 +236,53 @@ paths:
           description: Agent runtime unavailable
 
   # ── Agents ──────────────────────────────────────────────────
+  /v1/agents/{agent_id}:
+    get:
+      tags: [Agents]
+      summary: Get agent details
+      operationId: getAgent
+      parameters:
+        - name: agent_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Agent details
+        "404":
+          description: Agent not found
+
+  /v1/agents/{agent_id}/activate:
+    post:
+      tags: [Agents]
+      summary: Activate an agent
+      operationId: activateAgent
+      parameters:
+        - name: agent_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Agent activated
+
+  /v1/agents/{agent_id}/deactivate:
+    post:
+      tags: [Agents]
+      summary: Deactivate an agent
+      operationId: deactivateAgent
+      parameters:
+        - name: agent_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Agent deactivated
+
   /v1/agents:
     post:
       tags: [Agents]
@@ -247,6 +416,23 @@ paths:
                   total:
                     type: integer
 
+  /v1/workflows/{workflow_id}:
+    get:
+      tags: [Workflows]
+      summary: Get workflow details
+      operationId: getWorkflow
+      parameters:
+        - name: workflow_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Workflow details
+        "404":
+          description: Workflow not found
+
   /v1/workflows/{workflow_id}/execute:
     post:
       tags: [Workflows]
@@ -347,6 +533,187 @@ paths:
                 $ref: "#/components/schemas/OrganizationResponse"
         "404":
           description: Organization not found
+    patch:
+      tags: [Organizations]
+      summary: Update organization
+      operationId: updateOrganization
+      parameters:
+        - name: org_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: Organization updated
+        "404":
+          description: Organization not found
+
+  # ── Customers ─────────────────────────────────────────────
+  /v1/customers:
+    post:
+      tags: [Customers]
+      summary: Create a customer
+      operationId: createCustomer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [organization_id]
+              properties:
+                organization_id:
+                  type: string
+                first_name:
+                  type: string
+                last_name:
+                  type: string
+                email:
+                  type: string
+                phone:
+                  type: string
+                preferences:
+                  type: object
+                metadata:
+                  type: object
+      responses:
+        "200":
+          description: Customer created
+    get:
+      tags: [Customers]
+      summary: List customers for an organization
+      operationId: listCustomers
+      parameters:
+        - name: organization_id
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of customers
+
+  /v1/customers/{customer_id}:
+    get:
+      tags: [Customers]
+      summary: Get customer details
+      operationId: getCustomer
+      parameters:
+        - name: customer_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Customer details
+        "404":
+          description: Customer not found
+    patch:
+      tags: [Customers]
+      summary: Update customer
+      operationId: updateCustomer
+      parameters:
+        - name: customer_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: Customer updated
+
+  # ── Approvals ─────────────────────────────────────────────
+  /v1/approvals:
+    get:
+      tags: [Approvals]
+      summary: List pending approvals
+      operationId: listApprovals
+      parameters:
+        - name: organization_id
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of approvals
+
+  /v1/approvals/{approval_id}/decision:
+    post:
+      tags: [Approvals]
+      summary: Approve or reject
+      operationId: decideApproval
+      parameters:
+        - name: approval_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [decision]
+              properties:
+                decision:
+                  type: string
+                  enum: [approved, rejected]
+                note:
+                  type: string
+      responses:
+        "200":
+          description: Decision recorded
+        "404":
+          description: Approval not found
+
+  # ── Notifications ─────────────────────────────────────────
+  /v1/notifications/send:
+    post:
+      tags: [Notifications]
+      summary: Send a notification
+      operationId: sendNotification
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [organization_id, channel, recipient, message]
+              properties:
+                organization_id:
+                  type: string
+                channel:
+                  type: string
+                  enum: [email, sms, push]
+                recipient:
+                  type: string
+                message:
+                  type: string
+                subject:
+                  type: string
+                template_id:
+                  type: string
+                variables:
+                  type: object
+      responses:
+        "200":
+          description: Notification sent
 
   # ── Ordibl Webhooks ────────────────────────────────────────
   /webhooks/transcript:
