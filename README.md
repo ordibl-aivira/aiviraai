@@ -197,15 +197,69 @@ A customer calls a plumbing company using Workforce OS:
 7. **Memory** updated with customer preferences
 8. Workflow closed
 
+## Generative AI Culture
+
+Aivira is built **AI-native**. Generative AI is not bolted on — it is the
+foundation of every agent, workflow, and decision in the platform.
+
+### AI-First Development
+
+| Principle | How |
+|-----------|-----|
+| Deterministic by default | Low temperature (0.3), structured JSON output, explicit tool schemas |
+| Every prompt is versioned | All prompts in `packages/shared/prompts.py` with version strings |
+| Guardrails are mandatory | Scoped authority, bounded runtime, escalation rules per agent |
+| Agents never freelance | All coordination flows through workflow DAGs, never agent-to-agent chat |
+| Observability built-in | Every LLM call gets a trace ID via the shared AI client |
+
+### Shared AI Infrastructure
+
+```
+packages/shared/
+├── ai_client.py    # Provider-agnostic LLM client (OpenAI, Anthropic, Azure, local)
+├── ai_config.py    # Per-agent/org AI config resolution with role presets
+├── prompts.py      # Versioned prompt templates (identity, roles, tasks)
+└── settings.py     # Platform-wide AI defaults (model, temperature, guardrails)
+```
+
+### Supported AI Providers
+
+| Provider | Config Key | Notes |
+|----------|-----------|-------|
+| OpenAI | `AI_PROVIDER=openai` | Default — GPT-4o for reasoning, GPT-4o-mini for classification |
+| Anthropic | `AI_PROVIDER=anthropic` | Claude models |
+| Azure OpenAI | `AI_PROVIDER=azure_openai` | Enterprise deployments |
+| Local (Ollama) | `AI_PROVIDER=local` | Development / air-gapped environments |
+
+### Agent Role Presets
+
+Each agent role ships with tuned AI configuration:
+
+| Role | Temperature | Max Steps | Key Tools |
+|------|------------|-----------|-----------|
+| Receptionist | 0.3 | 10 | calendar, voice.transfer, crm |
+| Sales | 0.4 | 15 | crm, email, calendar |
+| Scheduling | 0.1 | 8 | calendar, notifications |
+| Support | 0.3 | 15 | crm, email, notifications |
+| Operations | 0.2 | 25 | crm, calendar, workflow.delegate |
+| Compliance | 0.0 | 10 | Read-only (blocks billing, voice) |
+| Orchestrator | 0.2 | 30 | workflow.delegate only |
+
+See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the full AI development guide and
+[`docs/guides/agent-development.md`](docs/guides/agent-development.md) for
+step-by-step instructions on building new agents.
+
 ## Technology Stack
 
 | Component | Technology |
 |-----------|-----------|
 | Runtime | Python 3.12, FastAPI, Uvicorn |
 | Agent framework | LangGraph, LangChain Core |
+| Generative AI | OpenAI GPT-4o (default), Anthropic, Azure OpenAI, Ollama |
 | Database | PostgreSQL 16 (SQLAlchemy + Alembic) |
 | Cache / Queue | Redis 7 |
 | Vector DB | Qdrant |
 | Auth | JWT (python-jose), bcrypt |
 | Containers | Docker, Kubernetes, Helm |
-| IPC | REST (httpx), Event bus (Redis Streams → Kafka) |
+| IPC | REST (httpx), Event bus (NATS JetStream) |
+| Observability | OpenTelemetry Collector |
