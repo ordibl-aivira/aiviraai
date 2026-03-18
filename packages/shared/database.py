@@ -292,7 +292,7 @@ class KnowledgeItem(Base):
     entity_type = Column(String(128), nullable=False)      # customer | product | policy | ...
     entity_id = Column(String(256), nullable=True)
     fact_text = Column(Text, nullable=False)
-    metadata = Column(JSONB, nullable=False, default=dict)
+    metadata_ = Column("metadata", JSONB, nullable=False, default=dict)
     sensitivity = Column(
         Enum("public", "internal", "confidential", "restricted", name="memory_sensitivity"),
         nullable=False,
