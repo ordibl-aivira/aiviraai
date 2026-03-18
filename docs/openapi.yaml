@@ -1,0 +1,1181 @@
+openapi: 3.0.3
+info:
+  title: Aivira Workforce OS — Complete API
+  description: |
+    Unified API specification for the Aivira Workforce OS platform
+    and Ordibl voice infrastructure layer.
+
+    ## Platform Structure
+
+    ```
+    Aivira Technologies (Parent)
+    ├── Ordibl — AI voice & communications infrastructure
+    └── Workforce OS — Autonomous AI workers platform
+    ```
+
+    ## Services
+
+    | Service              | Port | Description                              |
+    |----------------------|------|------------------------------------------|
+    | API Gateway          | 8000 | Tenant-facing unified entry point        |
+    | Agent Runtime        | 8001 | LangGraph multi-agent reasoning engine   |
+    | Ordibl Adapter       | 8002 | Voice infrastructure bridge              |
+    | Workflow Engine      | 8003 | DAG-based multi-agent orchestration      |
+    | Memory Service       | 8004 | 4-layer memory architecture              |
+    | Integration Service  | 8005 | External system adapters (CRM, etc.)     |
+    | Auth Service         | 8006 | Authentication & tenant RBAC             |
+    | Organization Service | 8007 | Tenant & agent management                |
+    | Analytics Service    | 8008 | Metrics & observability                  |
+    | Notification Service | 8009 | Email / SMS / push notifications         |
+  version: 0.1.0
+  contact:
+    name: Aivira Technologies
+    url: https://aivira.ai
+
+servers:
+  - url: http://localhost:8000
+    description: Local development (API Gateway)
+
+tags:
+  - name: Health
+    description: Service health checks
+  - name: Tasks
+    description: Agent task execution
+  - name: Agents
+    description: AI agent management
+  - name: Workflows
+    description: Multi-agent workflow orchestration
+  - name: Memory
+    description: 4-layer memory architecture
+  - name: Voice
+    description: Ordibl voice infrastructure
+  - name: Organizations
+    description: Tenant management
+  - name: Auth
+    description: Authentication & authorization
+  - name: Integrations
+    description: External system connectors
+  - name: Analytics
+    description: Metrics & observability
+  - name: Notifications
+    description: Outbound notifications
+  - name: Customers
+    description: Customer management
+  - name: Approvals
+    description: Human-in-the-loop approval gates
+
+paths:
+  # ── Health ──────────────────────────────────────────────────
+  /health:
+    get:
+      tags: [Health]
+      summary: API Gateway health check
+      operationId: healthCheck
+      responses:
+        "200":
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+
+  # ── Auth ────────────────────────────────────────────────────
+  /v1/auth/login:
+    post:
+      tags: [Auth]
+      summary: Authenticate user
+      operationId: login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email:
+                  type: string
+                password:
+                  type: string
+      responses:
+        "200":
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token:
+                    type: string
+                  user_id:
+                    type: string
+                  organization_id:
+                    type: string
+        "401":
+          description: Invalid credentials
+
+  /v1/auth/register:
+    post:
+      tags: [Auth]
+      summary: Register new user
+      operationId: register
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password, full_name, organization_name]
+              properties:
+                email:
+                  type: string
+                password:
+                  type: string
+                full_name:
+                  type: string
+                organization_name:
+                  type: string
+      responses:
+        "200":
+          description: Registration successful
+
+  /v1/me:
+    get:
+      tags: [Auth]
+      summary: Get current user profile
+      operationId: getMe
+      responses:
+        "200":
+          description: Current user profile
+
+  # ── Tasks ───────────────────────────────────────────────────
+  /v1/tasks:
+    get:
+      tags: [Tasks]
+      summary: List tasks for an organization
+      operationId: listTasks
+      parameters:
+        - name: organization_id
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of tasks
+
+  /v1/tasks/{task_id}:
+    get:
+      tags: [Tasks]
+      summary: Get task state and details
+      operationId: getTask
+      parameters:
+        - name: task_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Task details
+        "404":
+          description: Task not found
+
+  /v1/tasks/{task_id}/retry:
+    post:
+      tags: [Tasks]
+      summary: Retry a failed task
+      operationId: retryTask
+      parameters:
+        - name: task_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Task retried
+        "404":
+          description: Task not found
+
+  /v1/tasks/execute:
+    post:
+      tags: [Tasks]
+      summary: Execute an agent task
+      description: |
+        Submit a task to the agent runtime. The agent runs its full
+        reasoning loop (context → plan → act → observe → reflect →
+        memory → continue/stop) and returns the result.
+      operationId: executeTask
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TaskRequest"
+            example:
+              organization_id: org_demo
+              agent_id: agt_receptionist_001
+              task_type: receptionist.voice_turn
+              goal: Book a service appointment for the customer
+              input:
+                customer_name: John Doe
+                utterance: I need a plumber tomorrow morning
+              constraints: {}
+              success_criteria:
+                - customer intent understood
+                - next action proposed
+      responses:
+        "200":
+          description: Task executed successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TaskResponse"
+        "502":
+          description: Agent runtime unavailable
+
+  # ── Agents ──────────────────────────────────────────────────
+  /v1/agents/{agent_id}:
+    get:
+      tags: [Agents]
+      summary: Get agent details
+      operationId: getAgent
+      parameters:
+        - name: agent_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Agent details
+        "404":
+          description: Agent not found
+
+  /v1/agents/{agent_id}/activate:
+    post:
+      tags: [Agents]
+      summary: Activate an agent
+      operationId: activateAgent
+      parameters:
+        - name: agent_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Agent activated
+
+  /v1/agents/{agent_id}/deactivate:
+    post:
+      tags: [Agents]
+      summary: Deactivate an agent
+      operationId: deactivateAgent
+      parameters:
+        - name: agent_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Agent deactivated
+
+  /v1/agents:
+    post:
+      tags: [Agents]
+      summary: Deploy a new AI agent
+      operationId: createAgent
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AgentCreate"
+            example:
+              organization_id: org_demo
+              name: AI Receptionist
+              role: receptionist
+              description: Handles inbound calls and routes requests
+              capabilities: [voice, scheduling, crm]
+              tools: [calendar.create_event, crm.create_task, voice.transfer]
+              policies:
+                max_discount_percent: 0
+                requires_approval_for: [billing.create_invoice]
+              max_steps: 20
+              max_tokens_per_step: 4096
+              timeout_seconds: 300
+      responses:
+        "200":
+          description: Agent created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgentResponse"
+    get:
+      tags: [Agents]
+      summary: List agents for an organization
+      operationId: listAgents
+      parameters:
+        - name: organization_id
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of agents
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  agents:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/AgentResponse"
+                  total:
+                    type: integer
+
+  # ── Workflows ───────────────────────────────────────────────
+  /v1/workflows:
+    post:
+      tags: [Workflows]
+      summary: Create a multi-agent workflow
+      description: |
+        Define a workflow as a DAG of steps, each assigned to a
+        specialist agent role. Dependencies between steps are
+        resolved automatically during execution.
+      operationId: createWorkflow
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WorkflowCreate"
+            example:
+              organization_id: org_demo
+              name: Customer Onboarding
+              description: End-to-end onboarding for new customers
+              trigger_event: customer.created
+              steps:
+                - step_id: intake
+                  name: Collect customer intake
+                  assigned_agent_role: receptionist
+                  depends_on: []
+                  timeout_seconds: 120
+                - step_id: qualify
+                  name: Qualify account
+                  assigned_agent_role: sales
+                  depends_on: [intake]
+                  timeout_seconds: 300
+                - step_id: billing_setup
+                  name: Set up payment profile
+                  assigned_agent_role: billing
+                  depends_on: [qualify]
+                  requires_approval: true
+                - step_id: onboard_session
+                  name: Create onboarding session
+                  assigned_agent_role: support
+                  depends_on: [qualify]
+                - step_id: compliance_check
+                  name: Verify required documents
+                  assigned_agent_role: compliance
+                  depends_on: [intake]
+      responses:
+        "200":
+          description: Workflow created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WorkflowResponse"
+    get:
+      tags: [Workflows]
+      summary: List workflows for an organization
+      operationId: listWorkflows
+      parameters:
+        - name: organization_id
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of workflows
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  workflows:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/WorkflowResponse"
+                  total:
+                    type: integer
+
+  /v1/workflows/{workflow_id}:
+    get:
+      tags: [Workflows]
+      summary: Get workflow details
+      operationId: getWorkflow
+      parameters:
+        - name: workflow_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Workflow details
+        "404":
+          description: Workflow not found
+
+  /v1/workflows/{workflow_id}/execute:
+    post:
+      tags: [Workflows]
+      summary: Execute a workflow
+      description: |
+        Start executing a workflow. The engine walks the DAG,
+        dispatching tasks to specialist agents and tracking
+        progress through each step.
+      operationId: executeWorkflow
+      parameters:
+        - name: workflow_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Workflow execution started
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WorkflowExecutionResponse"
+        "404":
+          description: Workflow not found
+
+  # ── Memory ─────────────────────────────────────────────────
+  /v1/memory/retrieve:
+    post:
+      tags: [Memory]
+      summary: Retrieve context from all memory layers
+      description: |
+        Assemble a context packet from working, episodic, semantic,
+        and procedural memory. This is the primary endpoint called
+        by the agent runtime before each reasoning step.
+      operationId: retrieveMemory
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MemoryRetrievalRequest"
+            example:
+              organization_id: org_demo
+              agent_id: agt_receptionist_001
+              query: customer scheduling preferences
+              memory_types: [episodic, semantic]
+              max_results: 10
+      responses:
+        "200":
+          description: Context packet assembled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MemoryContextPacket"
+
+  # ── Voice (Ordibl) ─────────────────────────────────────────
+  /v1/voice/call:
+    post:
+      tags: [Voice]
+      summary: Initiate outbound voice call via Ordibl
+      description: |
+        Initiate an outbound voice call through Ordibl's telephony
+        infrastructure. The call is connected to an AI agent that
+        handles the conversation.
+      operationId: initiateVoiceCall
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VoiceCallRequest"
+      responses:
+        "200":
+          description: Call initiated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VoiceCallResponse"
+
+  # ── Organizations ──────────────────────────────────────────
+  /v1/organizations/{org_id}:
+    get:
+      tags: [Organizations]
+      summary: Get organization details
+      operationId: getOrganization
+      parameters:
+        - name: org_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Organization details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrganizationResponse"
+        "404":
+          description: Organization not found
+    patch:
+      tags: [Organizations]
+      summary: Update organization
+      operationId: updateOrganization
+      parameters:
+        - name: org_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: Organization updated
+        "404":
+          description: Organization not found
+
+  # ── Customers ─────────────────────────────────────────────
+  /v1/customers:
+    post:
+      tags: [Customers]
+      summary: Create a customer
+      operationId: createCustomer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [organization_id]
+              properties:
+                organization_id:
+                  type: string
+                first_name:
+                  type: string
+                last_name:
+                  type: string
+                email:
+                  type: string
+                phone:
+                  type: string
+                preferences:
+                  type: object
+                metadata:
+                  type: object
+      responses:
+        "200":
+          description: Customer created
+    get:
+      tags: [Customers]
+      summary: List customers for an organization
+      operationId: listCustomers
+      parameters:
+        - name: organization_id
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of customers
+
+  /v1/customers/{customer_id}:
+    get:
+      tags: [Customers]
+      summary: Get customer details
+      operationId: getCustomer
+      parameters:
+        - name: customer_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Customer details
+        "404":
+          description: Customer not found
+    patch:
+      tags: [Customers]
+      summary: Update customer
+      operationId: updateCustomer
+      parameters:
+        - name: customer_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: Customer updated
+
+  # ── Approvals ─────────────────────────────────────────────
+  /v1/approvals:
+    get:
+      tags: [Approvals]
+      summary: List pending approvals
+      operationId: listApprovals
+      parameters:
+        - name: organization_id
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of approvals
+
+  /v1/approvals/{approval_id}/decision:
+    post:
+      tags: [Approvals]
+      summary: Approve or reject
+      operationId: decideApproval
+      parameters:
+        - name: approval_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [decision]
+              properties:
+                decision:
+                  type: string
+                  enum: [approved, rejected]
+                note:
+                  type: string
+      responses:
+        "200":
+          description: Decision recorded
+        "404":
+          description: Approval not found
+
+  # ── Notifications ─────────────────────────────────────────
+  /v1/notifications/send:
+    post:
+      tags: [Notifications]
+      summary: Send a notification
+      operationId: sendNotification
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [organization_id, channel, recipient, message]
+              properties:
+                organization_id:
+                  type: string
+                channel:
+                  type: string
+                  enum: [email, sms, push]
+                recipient:
+                  type: string
+                message:
+                  type: string
+                subject:
+                  type: string
+                template_id:
+                  type: string
+                variables:
+                  type: object
+      responses:
+        "200":
+          description: Notification sent
+
+  # ── Ordibl Webhooks ────────────────────────────────────────
+  /webhooks/transcript:
+    post:
+      tags: [Voice]
+      summary: Receive real-time transcript from Ordibl
+      description: |
+        Webhook endpoint called by Ordibl when a speech-to-text
+        transcript chunk is available during a live call.
+
+        Flow: Ordibl Telephony → Speech Recognition → This webhook
+        → Agent Runtime → AI Response → Speech Synthesis
+      operationId: transcriptWebhook
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TranscriptWebhook"
+            example:
+              call_id: call_001
+              organization_id: org_demo
+              speaker: customer
+              utterance: I need a plumber tomorrow morning
+      responses:
+        "200":
+          description: Transcript processed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                  call_id:
+                    type: string
+                  speak_text:
+                    type: string
+                    description: Text to synthesize and speak back to caller
+
+components:
+  schemas:
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: ok
+        service:
+          type: string
+          example: api-gateway
+
+    # ── Task ────────────────────────────────────────────────
+    TaskRequest:
+      type: object
+      required: [organization_id, agent_id, task_type, goal]
+      properties:
+        organization_id:
+          type: string
+        agent_id:
+          type: string
+        task_type:
+          type: string
+          description: "Agent-specific task type (e.g. receptionist.voice_turn, sales.follow_up)"
+        goal:
+          type: string
+          description: Natural language goal for the agent
+        input:
+          type: object
+          additionalProperties: true
+        constraints:
+          type: object
+          additionalProperties: true
+        success_criteria:
+          type: array
+          items:
+            type: string
+        parent_task_id:
+          type: string
+          nullable: true
+        depends_on:
+          type: array
+          items:
+            type: string
+        deadline:
+          type: string
+          format: date-time
+          nullable: true
+        priority:
+          type: integer
+          default: 5
+
+    TaskResponse:
+      type: object
+      properties:
+        task_id:
+          type: string
+        status:
+          type: string
+          enum: [pending, context_loading, planning, executing, waiting_for_result, evaluating, completed, escalated, failed]
+        result:
+          type: object
+          additionalProperties: true
+        plan:
+          type: array
+          items:
+            type: object
+            properties:
+              step:
+                type: string
+              description:
+                type: string
+        steps_executed:
+          type: integer
+        started_at:
+          type: string
+          format: date-time
+          nullable: true
+        completed_at:
+          type: string
+          format: date-time
+          nullable: true
+
+    # ── Agent ───────────────────────────────────────────────
+    AgentCreate:
+      type: object
+      required: [organization_id, name, role]
+      properties:
+        organization_id:
+          type: string
+        name:
+          type: string
+        role:
+          type: string
+          description: "Agent role (receptionist, sales, support, billing, compliance, etc.)"
+        description:
+          type: string
+          nullable: true
+        capabilities:
+          type: array
+          items:
+            type: string
+        tools:
+          type: array
+          items:
+            type: string
+        policies:
+          type: object
+          additionalProperties: true
+        max_steps:
+          type: integer
+          default: 20
+        max_tokens_per_step:
+          type: integer
+          default: 4096
+        timeout_seconds:
+          type: integer
+          default: 300
+
+    AgentResponse:
+      type: object
+      properties:
+        id:
+          type: string
+        organization_id:
+          type: string
+        name:
+          type: string
+        role:
+          type: string
+        description:
+          type: string
+          nullable: true
+        status:
+          type: string
+          enum: [idle, busy, error, disabled]
+        capabilities:
+          type: array
+          items:
+            type: string
+        tools:
+          type: array
+          items:
+            type: string
+        policies:
+          type: object
+        max_steps:
+          type: integer
+        max_tokens_per_step:
+          type: integer
+        timeout_seconds:
+          type: integer
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    # ── Workflow ────────────────────────────────────────────
+    WorkflowStepDefinition:
+      type: object
+      required: [step_id, name, assigned_agent_role]
+      properties:
+        step_id:
+          type: string
+        name:
+          type: string
+        assigned_agent_role:
+          type: string
+        depends_on:
+          type: array
+          items:
+            type: string
+        input_schema:
+          type: object
+        expected_output:
+          type: object
+        timeout_seconds:
+          type: integer
+          default: 300
+        requires_approval:
+          type: boolean
+          default: false
+
+    WorkflowCreate:
+      type: object
+      required: [organization_id, name, steps]
+      properties:
+        organization_id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        trigger_event:
+          type: string
+          nullable: true
+        steps:
+          type: array
+          items:
+            $ref: "#/components/schemas/WorkflowStepDefinition"
+
+    WorkflowResponse:
+      type: object
+      properties:
+        id:
+          type: string
+        organization_id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        trigger_event:
+          type: string
+          nullable: true
+        status:
+          type: string
+          enum: [pending, running, completed, failed, paused]
+        steps:
+          type: array
+          items:
+            $ref: "#/components/schemas/WorkflowStepDefinition"
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    WorkflowExecutionResponse:
+      type: object
+      properties:
+        execution_id:
+          type: string
+        workflow_id:
+          type: string
+        status:
+          type: string
+          enum: [pending, running, completed, failed, paused]
+        current_step:
+          type: string
+          nullable: true
+        step_results:
+          type: object
+          additionalProperties: true
+        started_at:
+          type: string
+          format: date-time
+        completed_at:
+          type: string
+          format: date-time
+          nullable: true
+
+    # ── Memory ──────────────────────────────────────────────
+    MemoryRetrievalRequest:
+      type: object
+      required: [organization_id, agent_id, query]
+      properties:
+        organization_id:
+          type: string
+        agent_id:
+          type: string
+        query:
+          type: string
+        memory_types:
+          type: array
+          items:
+            type: string
+            enum: [working, episodic, semantic, procedural]
+        max_results:
+          type: integer
+          default: 10
+        filters:
+          type: object
+          additionalProperties: true
+
+    MemoryContextPacket:
+      type: object
+      description: |
+        Assembled context packet sent to the reasoning engine.
+        Contains data from all 4 memory layers.
+      properties:
+        working:
+          type: object
+          description: Short-lived session state (Redis)
+          properties:
+            session_id:
+              type: string
+            agent_id:
+              type: string
+            current_step:
+              type: string
+              nullable: true
+            recent_events:
+              type: array
+              items:
+                type: object
+            temporary_context:
+              type: object
+        episodes:
+          type: array
+          description: Past task/event records (Postgres)
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+              agent_id:
+                type: string
+              episode_type:
+                type: string
+              summary:
+                type: string
+              created_at:
+                type: string
+                format: date-time
+        facts:
+          type: array
+          description: Generalised knowledge (Postgres + Qdrant vectors)
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+              entity_type:
+                type: string
+              fact_text:
+                type: string
+              relevance_score:
+                type: number
+        procedures:
+          type: array
+          description: Reusable playbooks / SOPs (Postgres)
+          items:
+            type: object
+            properties:
+              procedure_id:
+                type: string
+              name:
+                type: string
+              trigger:
+                type: string
+              steps:
+                type: array
+                items:
+                  type: string
+
+    # ── Voice / Ordibl ──────────────────────────────────────
+    TranscriptWebhook:
+      type: object
+      required: [call_id, organization_id, speaker, utterance]
+      properties:
+        call_id:
+          type: string
+        organization_id:
+          type: string
+        speaker:
+          type: string
+        utterance:
+          type: string
+        timestamp:
+          type: string
+          nullable: true
+
+    VoiceCallRequest:
+      type: object
+      required: [organization_id, to_number, agent_id, purpose]
+      properties:
+        organization_id:
+          type: string
+        to_number:
+          type: string
+        from_number:
+          type: string
+          nullable: true
+        agent_id:
+          type: string
+        purpose:
+          type: string
+        context:
+          type: object
+          additionalProperties: true
+
+    VoiceCallResponse:
+      type: object
+      properties:
+        call_id:
+          type: string
+        status:
+          type: string
+        organization_id:
+          type: string
+        agent_id:
+          type: string
+        started_at:
+          type: string
+          format: date-time
+
+    # ── Organization ────────────────────────────────────────
+    OrganizationResponse:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        slug:
+          type: string
+        industry:
+          type: string
+          nullable: true
+        timezone:
+          type: string
+        settings:
+          type: object
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time

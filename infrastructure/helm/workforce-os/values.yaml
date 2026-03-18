@@ -1,0 +1,121 @@
+# ────────────────────────────────────────────────────────────────
+# Aivira Workforce OS — Helm values
+# ────────────────────────────────────────────────────────────────
+
+global:
+  image:
+    registry: ""          # e.g. ghcr.io/ordibl-aivira
+    tag: latest
+    pullPolicy: IfNotPresent
+
+# ── Infrastructure ────────────────────────────────────────────
+postgres:
+  enabled: true
+  image: postgres:16-alpine
+  storage: 10Gi
+  credentials:
+    user: postgres
+    database: ordibl
+
+redis:
+  enabled: true
+  image: redis:7-alpine
+
+qdrant:
+  enabled: true
+  image: qdrant/qdrant:v1.11.3
+  storage: 5Gi
+
+nats:
+  enabled: true
+  image: nats:2.10-alpine
+
+otelCollector:
+  enabled: true
+  image: otel/opentelemetry-collector-contrib:0.96.0
+
+# ── Application services ─────────────────────────────────────
+services:
+  apiGateway:
+    replicas: 2
+    port: 8000
+    resources:
+      requests: { cpu: 100m, memory: 128Mi }
+      limits:   { cpu: 500m, memory: 512Mi }
+
+  agentRuntime:
+    replicas: 2
+    port: 8001
+    resources:
+      requests: { cpu: 200m, memory: 256Mi }
+      limits:   { cpu: "1", memory: 1Gi }
+
+  ordiblAdapter:
+    replicas: 2
+    port: 8002
+    resources:
+      requests: { cpu: 100m, memory: 128Mi }
+      limits:   { cpu: 500m, memory: 512Mi }
+
+  workflowEngine:
+    replicas: 2
+    port: 8003
+    resources:
+      requests: { cpu: 200m, memory: 256Mi }
+      limits:   { cpu: "1", memory: 1Gi }
+
+  memoryService:
+    replicas: 2
+    port: 8004
+    resources:
+      requests: { cpu: 100m, memory: 256Mi }
+      limits:   { cpu: 500m, memory: 512Mi }
+
+  integrationService:
+    replicas: 1
+    port: 8005
+    resources:
+      requests: { cpu: 100m, memory: 128Mi }
+      limits:   { cpu: 500m, memory: 512Mi }
+
+  authService:
+    replicas: 2
+    port: 8006
+    resources:
+      requests: { cpu: 100m, memory: 128Mi }
+      limits:   { cpu: 500m, memory: 256Mi }
+
+  organizationService:
+    replicas: 1
+    port: 8007
+    resources:
+      requests: { cpu: 100m, memory: 128Mi }
+      limits:   { cpu: 500m, memory: 256Mi }
+
+  analyticsService:
+    replicas: 1
+    port: 8008
+    resources:
+      requests: { cpu: 100m, memory: 128Mi }
+      limits:   { cpu: 500m, memory: 256Mi }
+
+  notificationService:
+    replicas: 1
+    port: 8009
+    resources:
+      requests: { cpu: 100m, memory: 128Mi }
+      limits:   { cpu: 500m, memory: 256Mi }
+
+  worker:
+    replicas: 3
+    resources:
+      requests: { cpu: 200m, memory: 256Mi }
+      limits:   { cpu: "1", memory: 1Gi }
+
+# ── Ingress ───────────────────────────────────────────────────
+ingress:
+  enabled: true
+  host: api.workforce-os.local
+  className: nginx
+  annotations: {}
+  webhookPath: /webhooks
