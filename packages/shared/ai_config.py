@@ -65,7 +65,7 @@ class AgentAIConfig:
 
 
 def resolve_ai_config(
-    agent_config: Optional[Dict[str, Any]] = None,
+    agent_config: Optional[Dict[str, Any] | str] = None,
     org_config: Optional[Dict[str, Any]] = None,
 ) -> AgentAIConfig:
     """Resolve the effective AI configuration by merging layers.
@@ -73,7 +73,8 @@ def resolve_ai_config(
     Parameters
     ----------
     agent_config:
-        The ``config`` JSONB from the agent record.
+        The ``config`` JSONB from the agent record, or a role name
+        string (e.g. ``"receptionist"``) to load the role preset.
     org_config:
         Organization-level AI overrides (if any).
 
@@ -81,6 +82,10 @@ def resolve_ai_config(
     -------
     AgentAIConfig with all layers merged.
     """
+    # If agent_config is a role name string, resolve to the preset dict
+    if isinstance(agent_config, str):
+        agent_config = ROLE_PRESETS.get(agent_config, {})
+
     # Start with platform defaults
     cfg = AgentAIConfig(
         model=settings.ai_primary_model,
@@ -207,6 +212,10 @@ ROLE_PRESETS: Dict[str, Dict[str, Any]] = {
 }
 
 
-def get_role_preset(role: str) -> Dict[str, Any]:
-    """Get the AI configuration preset for a given agent role."""
-    return ROLE_PRESETS.get(role, {})
+def get_role_preset(role: str) -> AgentAIConfig:
+    """Get the AI configuration preset for a given agent role.
+
+    Returns a fully resolved ``AgentAIConfig`` with the role's
+    preset values merged on top of platform defaults.
+    """
+    return resolve_ai_config(agent_config=ROLE_PRESETS.get(role, {}))
