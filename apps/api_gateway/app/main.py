@@ -134,6 +134,10 @@ async def get_current_user(authorization: str = "") -> dict:
             )
             response.raise_for_status()
             return response.json()
+        except httpx.HTTPStatusError as exc:
+            raise HTTPException(
+                status_code=exc.response.status_code, detail=exc.response.text
+            )
         except httpx.HTTPError as exc:
             raise HTTPException(
                 status_code=502, detail=f"Auth service unavailable: {exc}"

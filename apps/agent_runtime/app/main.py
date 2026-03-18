@@ -98,6 +98,7 @@ def execute_task(request: TaskRequest) -> TaskResponse:
         "agent_id": request.agent_id,
         "task_type": request.task_type,
         "goal": request.goal,
+        "input": request.input,
         "status": status.value,
         "result": state.get("result", {}),
         "plan": state.get("plan", []),
@@ -137,7 +138,7 @@ def resume_task(task_id: str) -> dict:
             "agent_id": task["agent_id"],
             "task_type": task["task_type"],
             "goal": task["goal"],
-            "input": task.get("result", {}).get("input", {}),
+            "input": task.get("input", {}),
             "constraints": {},
             "success_criteria": [],
         }

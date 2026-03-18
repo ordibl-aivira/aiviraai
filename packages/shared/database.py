@@ -258,6 +258,7 @@ class AgentEpisode(Base):
     agent_id = Column(UUID(as_uuid=True), ForeignKey("agents.id"), nullable=False, index=True)
     organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False, index=True)
     task_id = Column(UUID(as_uuid=True), ForeignKey("tasks.id"), nullable=True, index=True)
+    customer_id = Column(UUID(as_uuid=True), ForeignKey("customers.id"), nullable=True, index=True)
     episode_type = Column(
         Enum(
             "task_execution", "customer_interaction", "tool_call",

@@ -51,7 +51,13 @@ def unified_send(request: NotificationSendRequest) -> dict:
 
     body = request.body
     if request.template_id and request.template_id in _templates:
-        body = _templates[request.template_id].format(**request.template_vars)
+        try:
+            body = _templates[request.template_id].format(**request.template_vars)
+        except KeyError as exc:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Missing template variable: {exc}",
+            )
 
     record = {
         "id": notif_id,
