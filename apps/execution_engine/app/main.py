@@ -531,6 +531,59 @@ async def _send_whatsapp(
     }
 
 
+def _is_safe_webhook_url(url: str) -> bool:
+    """Validate that a webhook URL is safe (not internal/private)."""
+    from urllib.parse import urlparse
+    import ipaddress
+    import socket
+
+    try:
+        parsed = urlparse(url)
+    except Exception:
+        return False
+
+    # Only allow http and https schemes
+    if parsed.scheme not in ("http", "https"):
+        return False
+
+    hostname = parsed.hostname
+    if not hostname:
+        return False
+
+    # Block known internal service hostnames
+    _BLOCKED_HOSTS = {
+        "localhost", "research-agent", "content-agent", "motion-engine",
+        "execution-engine", "memory-service", "integration-service",
+        "auth-service", "organization-service", "analytics-service",
+        "notification-service", "agent-runtime", "ordibl-adapter",
+        "workflow-engine", "redis", "postgres", "qdrant",
+        "metadata.google.internal",
+    }
+    if hostname.lower() in _BLOCKED_HOSTS:
+        return False
+
+    # Resolve hostname and block private/reserved IP ranges
+    try:
+        addr = ipaddress.ip_address(hostname)
+    except ValueError:
+        # hostname is a domain — resolve it
+        try:
+            resolved = socket.getaddrinfo(hostname, None)
+            for family, _type, _proto, _canon, sockaddr in resolved:
+                addr = ipaddress.ip_address(sockaddr[0])
+                if addr.is_private or addr.is_loopback or addr.is_link_local or addr.is_reserved:
+                    return False
+        except socket.gaierror:
+            return False
+        return True
+
+    # Direct IP address — block private ranges
+    if addr.is_private or addr.is_loopback or addr.is_link_local or addr.is_reserved:
+        return False
+
+    return True
+
+
 async def _fire_webhook(
     execution_id: str,
     organization_id: str,
@@ -541,6 +594,12 @@ async def _fire_webhook(
     """Fire a webhook to an external URL."""
     url = parameters.get("webhook_url", parameters.get("url", ""))
     if url:
+        if not _is_safe_webhook_url(url):
+            return {
+                "status": "failed",
+                "channel": "webhook",
+                "error": "URL rejected: internal, private, or disallowed destination",
+            }
         try:
             async with httpx.AsyncClient(timeout=10.0) as client:
                 resp = await client.post(url, json={

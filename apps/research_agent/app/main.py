@@ -117,7 +117,7 @@ async def investigate(request: ResearchRequest) -> dict:
 
     if request.research_type == ResearchType.LEAD_ENRICHMENT:
         lead_intel, intelligence, sources_consulted, confidence = await _enrich_lead(
-            request.query, request.target, request.data_sources
+            request.organization_id, request.query, request.target, request.data_sources
         )
     elif request.research_type == ResearchType.MARKET_RESEARCH:
         intelligence, sources_consulted, confidence = _do_market_research(request.query)
@@ -125,7 +125,7 @@ async def investigate(request: ResearchRequest) -> dict:
         intelligence, sources_consulted, confidence = _do_competitor_analysis(request.query)
     elif request.research_type == ResearchType.CUSTOMER_PROFILING:
         lead_intel, intelligence, sources_consulted, confidence = await _profile_customer(
-            request.query, request.target, request.data_sources
+            request.organization_id, request.query, request.target, request.data_sources
         )
     elif request.research_type == ResearchType.SIGNAL_DETECTION:
         intelligence, sources_consulted, confidence = _detect_signals(
@@ -185,7 +185,7 @@ async def detect_signals_endpoint(request: ResearchRequest) -> dict:
 # ── Internal helpers ──────────────────────────────────────────────
 
 async def _enrich_lead(
-    query: str, target: str | None, data_sources: List[str]
+    organization_id: str, query: str, target: str | None, data_sources: List[str]
 ) -> tuple:
     """Enrich a lead by consulting CRM, memory, and public data."""
     sources: List[str] = []
@@ -205,7 +205,7 @@ async def _enrich_lead(
     else:
         # Try CRM lookup via integration service
         if "crm" in data_sources:
-            crm_data = await _query_crm(target or query)
+            crm_data = await _query_crm(organization_id, target or query)
             if crm_data:
                 sources.append("crm")
                 combined.update(crm_data)
@@ -213,7 +213,7 @@ async def _enrich_lead(
 
         # Try memory service
         if "memory" in data_sources:
-            memory_data = await _query_memory(query)
+            memory_data = await _query_memory(organization_id, query)
             if memory_data:
                 sources.append("memory_service")
                 combined.update(memory_data)
@@ -242,10 +242,10 @@ async def _enrich_lead(
 
 
 async def _profile_customer(
-    query: str, target: str | None, data_sources: List[str]
+    organization_id: str, query: str, target: str | None, data_sources: List[str]
 ) -> tuple:
     """Profile a customer from CRM and memory data."""
-    return await _enrich_lead(query, target, data_sources)
+    return await _enrich_lead(organization_id, query, target, data_sources)
 
 
 def _do_market_research(query: str) -> tuple:
@@ -321,7 +321,7 @@ def _recommend_action(signals: List[str]) -> str:
     return "standard_follow_up"
 
 
-async def _query_crm(target: str) -> Dict[str, Any]:
+async def _query_crm(organization_id: str, target: str) -> Dict[str, Any]:
     """Query CRM via integration service for lead data."""
     try:
         async with httpx.AsyncClient(timeout=10.0) as client:
@@ -329,7 +329,7 @@ async def _query_crm(target: str) -> Dict[str, Any]:
                 f"{settings.integration_service_url}/internal/tools/execute",
                 json={
                     "tool_name": "crm.get_lead",
-                    "organization_id": "org_001",
+                    "organization_id": organization_id,
                     "agent_id": "agt_research_001",
                     "parameters": {"lead_id": target},
                 },
@@ -342,14 +342,14 @@ async def _query_crm(target: str) -> Dict[str, Any]:
     return {}
 
 
-async def _query_memory(query: str) -> Dict[str, Any]:
+async def _query_memory(organization_id: str, query: str) -> Dict[str, Any]:
     """Query memory service for relevant facts/episodes."""
     try:
         async with httpx.AsyncClient(timeout=10.0) as client:
             resp = await client.post(
                 f"{settings.memory_service_url}/internal/memory/retrieve",
                 json={
-                    "organization_id": "org_001",
+                    "organization_id": organization_id,
                     "agent_id": "agt_research_001",
                     "query": query,
                     "memory_types": ["semantic", "episodic"],

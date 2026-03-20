@@ -205,7 +205,7 @@ def create_sequence(request: MotionSequenceCreate) -> dict:
         "total_steps": len(steps),
         "steps": steps,
         "sla_deadline": sla_deadline.isoformat(),
-        "priority": request.priority or "normal",
+        "priority": request.priority if request.priority is not None else 5,
         "created_at": now.isoformat(),
         "updated_at": now.isoformat(),
     }
