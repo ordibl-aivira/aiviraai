@@ -124,7 +124,7 @@ def resume_task(task_id: str) -> dict:
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
 
-    if task["status"] not in (TaskStatus.FAILED.value, "blocked"):
+    if task["status"] not in (TaskStatus.FAILED.value, TaskStatus.ESCALATED.value, "blocked"):
         raise HTTPException(
             status_code=400,
             detail=f"Task in status '{task['status']}' cannot be resumed",

@@ -69,7 +69,7 @@ def create_workflow(request: WorkflowCreate) -> dict:
         "description": request.description,
         "trigger_event": request.trigger_event,
         "status": WorkflowStatus.PENDING.value,
-        "steps": [s.model_dump() for s in request.steps],
+        "steps": [s.model_dump(mode="json") for s in request.steps],
         "created_at": now.isoformat(),
         "updated_at": now.isoformat(),
     }
@@ -97,7 +97,7 @@ def get_workflow(workflow_id: str) -> dict:
 
 
 @app.post("/internal/workflows/{workflow_id}/advance")
-def advance_workflow(workflow_id: str) -> dict:
+async def advance_workflow(workflow_id: str) -> dict:
     """Advance a paused or waiting workflow to the next step."""
     wf = _workflows.get(workflow_id)
     if not wf:
@@ -120,7 +120,10 @@ def advance_workflow(workflow_id: str) -> dict:
         )
 
     execution["status"] = WorkflowStatus.RUNNING.value
-    return {"workflow_id": workflow_id, "execution_id": execution["execution_id"], "status": "advanced"}
+
+    # Re-execute remaining DAG steps from where we left off
+    await _walk_dag(wf, execution)
+    return execution
 
 
 @app.post("/internal/workflows/{workflow_id}/cancel")
@@ -183,6 +186,97 @@ def _resolve_ready_steps(steps: List[dict], completed: set, failed: set | None =
     return ready
 
 
+async def _walk_dag(wf: dict, execution: dict) -> None:
+    """Walk the DAG from the current execution state, dispatching ready steps.
+
+    This helper is shared between ``execute_workflow`` (fresh start) and
+    ``advance_workflow`` (resume after approval).
+    """
+    steps = wf["steps"]
+    step_results: Dict[str, dict] = execution.get("step_results", {})
+    workflow_id = wf["id"]
+
+    # Derive completed / failed sets from existing step_results
+    completed_steps: set = set()
+    failed_steps: set = set()
+    for step_id, result in step_results.items():
+        if result.get("status") == "failed":
+            failed_steps.add(step_id)
+        else:
+            completed_steps.add(step_id)
+
+    while True:
+        ready = _resolve_ready_steps(steps, completed_steps, failed_steps)
+        if not ready:
+            break
+
+        for step in ready:
+            execution["current_step"] = step["step_id"]
+
+            # Check if step requires approval
+            if step.get("requires_approval", False):
+                approval_id = f"apr_{uuid4().hex[:12]}"
+                now = datetime.utcnow()
+                _approvals[approval_id] = {
+                    "id": approval_id,
+                    "organization_id": wf["organization_id"],
+                    "task_id": f"wf_step_{step['step_id']}",
+                    "requested_by_agent_id": f"agt_{step['assigned_agent_role']}_001",
+                    "approver_user_id": None,
+                    "status": ApprovalStatus.PENDING.value,
+                    "reason": f"Approval required for workflow step: {step['name']}",
+                    "decision_note": None,
+                    "created_at": now.isoformat(),
+                    "decided_at": None,
+                }
+                # Pause the workflow — it will be advanced after approval
+                execution["status"] = WorkflowStatus.PAUSED.value
+                execution["step_results"] = step_results
+                _workflows[workflow_id]["status"] = WorkflowStatus.PAUSED.value
+                return
+
+            # Dispatch task to agent runtime
+            task_payload = TaskRequest(
+                organization_id=wf["organization_id"],
+                agent_id=f"agt_{step['assigned_agent_role']}_001",
+                task_type=f"{step['assigned_agent_role']}.workflow_step",
+                goal=step["name"],
+                input=step.get("input_schema", {}),
+                constraints={},
+                success_criteria=[],
+            )
+
+            try:
+                async with httpx.AsyncClient(timeout=60.0) as client:
+                    resp = await client.post(
+                        f"{settings.agent_runtime_url}/internal/agent-runtime/tasks/execute",
+                        json=task_payload.model_dump(mode="json"),
+                    )
+                    resp.raise_for_status()
+                    result = resp.json()
+            except httpx.HTTPError:
+                result = {"status": "failed", "error": "Agent runtime unavailable"}
+
+            step_results[step["step_id"]] = result
+            if result.get("status") == "failed":
+                failed_steps.add(step["step_id"])
+            else:
+                completed_steps.add(step["step_id"])
+
+    has_failures = len(failed_steps) > 0
+    if has_failures:
+        execution["status"] = WorkflowStatus.FAILED.value
+    elif len(completed_steps) == len(steps):
+        execution["status"] = WorkflowStatus.COMPLETED.value
+    else:
+        execution["status"] = WorkflowStatus.FAILED.value
+    execution["step_results"] = step_results
+    if execution["status"] == WorkflowStatus.COMPLETED.value:
+        execution["completed_at"] = datetime.utcnow().isoformat()
+
+    _workflows[workflow_id]["status"] = execution["status"]
+
+
 @app.post("/internal/workflows/{workflow_id}/execute")
 async def execute_workflow(workflow_id: str) -> dict:
     """Start executing a workflow — dispatches tasks to agents via the runtime."""
@@ -201,87 +295,9 @@ async def execute_workflow(workflow_id: str) -> dict:
         "started_at": now.isoformat(),
         "completed_at": None,
     }
-
-    steps = wf["steps"]
-    completed_steps: set = set()
-    failed_steps: set = set()
-    step_results: Dict[str, dict] = {}
-
-    # Walk the DAG
-    while True:
-        ready = _resolve_ready_steps(steps, completed_steps, failed_steps)
-        if not ready:
-            break
-
-        for step in ready:
-            execution["current_step"] = step["step_id"]
-
-            # Check if step requires approval
-            if step.get("requires_approval", False):
-                approval_id = f"apr_{uuid4().hex[:12]}"
-                _approvals[approval_id] = {
-                    "id": approval_id,
-                    "organization_id": wf["organization_id"],
-                    "task_id": f"wf_step_{step['step_id']}",
-                    "requested_by_agent_id": f"agt_{step['assigned_agent_role']}_001",
-                    "approver_user_id": None,
-                    "status": ApprovalStatus.PENDING.value,
-                    "reason": f"Approval required for workflow step: {step['name']}",
-                    "decision_note": None,
-                    "created_at": now.isoformat(),
-                    "decided_at": None,
-                }
-                # Pause the workflow — it will be advanced after approval
-                execution["status"] = WorkflowStatus.PAUSED.value
-                execution["step_results"] = step_results
-                _executions[exec_id] = execution
-                _workflows[workflow_id]["status"] = WorkflowStatus.PAUSED.value
-                return execution
-
-            # Dispatch task to agent runtime
-            task_payload = TaskRequest(
-                organization_id=wf["organization_id"],
-                agent_id=f"agt_{step['assigned_agent_role']}_001",
-                task_type=f"{step['assigned_agent_role']}.workflow_step",
-                goal=step["name"],
-                input=step.get("input_schema", {}),
-                constraints={},
-                success_criteria=[],
-            )
-
-            try:
-                async with httpx.AsyncClient(timeout=60.0) as client:
-                    resp = await client.post(
-                        f"{settings.agent_runtime_url}/internal/agent-runtime/tasks/execute",
-                        json=task_payload.model_dump(),
-                    )
-                    resp.raise_for_status()
-                    result = resp.json()
-            except httpx.HTTPError:
-                result = {"status": "failed", "error": "Agent runtime unavailable"}
-
-            step_results[step["step_id"]] = result
-            if result.get("status") == "failed":
-                failed_steps.add(step["step_id"])
-            else:
-                completed_steps.add(step["step_id"])
-
-    has_failures = len(failed_steps) > 0
-    all_done = len(completed_steps) + len(failed_steps) >= len(steps) or (
-        len(completed_steps) == len(steps)
-    )
-    if has_failures:
-        execution["status"] = WorkflowStatus.FAILED.value
-    elif len(completed_steps) == len(steps):
-        execution["status"] = WorkflowStatus.COMPLETED.value
-    else:
-        execution["status"] = WorkflowStatus.FAILED.value
-    execution["step_results"] = step_results
-    if execution["status"] == WorkflowStatus.COMPLETED.value:
-        execution["completed_at"] = datetime.utcnow().isoformat()
-
     _executions[exec_id] = execution
-    _workflows[workflow_id]["status"] = execution["status"]
+
+    await _walk_dag(wf, execution)
     return execution
 
 

@@ -90,7 +90,7 @@ async def login(request: LoginRequest) -> dict:
         try:
             response = await client.post(
                 f"{settings.auth_service_url}/internal/auth/login",
-                json=request.model_dump(),
+                json=request.model_dump(mode="json"),
             )
             response.raise_for_status()
             return response.json()
@@ -110,7 +110,7 @@ async def register(request: UserCreate) -> dict:
         try:
             response = await client.post(
                 f"{settings.auth_service_url}/internal/auth/register",
-                json=request.model_dump(),
+                json=request.model_dump(mode="json"),
             )
             response.raise_for_status()
             return response.json()
@@ -152,7 +152,7 @@ async def execute_task(request: TaskRequest) -> dict:
         try:
             response = await client.post(
                 f"{settings.agent_runtime_url}/internal/agent-runtime/tasks/execute",
-                json=request.model_dump(),
+                json=request.model_dump(mode="json"),
             )
             response.raise_for_status()
             return response.json()
@@ -216,7 +216,7 @@ async def create_agent(request: AgentCreate) -> dict:
         try:
             response = await client.post(
                 f"{settings.organization_service_url}/internal/agents",
-                json=request.model_dump(),
+                json=request.model_dump(mode="json"),
             )
             response.raise_for_status()
             return response.json()
@@ -302,7 +302,7 @@ async def create_workflow(request: WorkflowCreate) -> dict:
         try:
             response = await client.post(
                 f"{settings.workflow_engine_url}/internal/workflows",
-                json=request.model_dump(),
+                json=request.model_dump(mode="json"),
             )
             response.raise_for_status()
             return response.json()
@@ -366,7 +366,7 @@ async def retrieve_memory(request: MemoryRetrievalRequest) -> dict:
         try:
             response = await client.post(
                 f"{settings.memory_service_url}/internal/memory/retrieve",
-                json=request.model_dump(),
+                json=request.model_dump(mode="json"),
             )
             response.raise_for_status()
             return response.json()
@@ -384,7 +384,7 @@ async def initiate_voice_call(request: VoiceCallRequest) -> dict:
         try:
             response = await client.post(
                 f"{settings.ordibl_adapter_url}/internal/voice/call",
-                json=request.model_dump(),
+                json=request.model_dump(mode="json"),
             )
             response.raise_for_status()
             return response.json()
@@ -437,7 +437,7 @@ async def create_customer(request: CustomerCreate) -> dict:
         try:
             response = await client.post(
                 f"{settings.organization_service_url}/internal/customers",
-                json=request.model_dump(),
+                json=request.model_dump(mode="json"),
             )
             response.raise_for_status()
             return response.json()
@@ -522,7 +522,7 @@ async def decide_approval(approval_id: str, decision: ApprovalDecision) -> dict:
         try:
             response = await client.post(
                 f"{settings.workflow_engine_url}/internal/approvals/{approval_id}/decision",
-                json=decision.model_dump(),
+                json=decision.model_dump(mode="json"),
             )
             response.raise_for_status()
             return response.json()
