@@ -213,6 +213,67 @@ services:
     environment:
       PYTHONPATH: /app
 
+  # ── Cognitive → Execution Stack ───────────────────────────────
+  research-agent:
+    build:
+      context: ../../
+      dockerfile: apps/research_agent/Dockerfile
+    <<: *common
+    ports:
+      - "8010:8010"
+    environment:
+      PYTHONPATH: /app
+      INTEGRATION_SERVICE_URL: http://integration-service:8005
+      MEMORY_SERVICE_URL: http://memory-service:8004
+    depends_on:
+      - integration-service
+      - memory-service
+
+  content-agent:
+    build:
+      context: ../../
+      dockerfile: apps/content_agent/Dockerfile
+    <<: *common
+    ports:
+      - "8011:8011"
+    environment:
+      PYTHONPATH: /app
+
+  motion-engine:
+    build:
+      context: ../../
+      dockerfile: apps/motion_engine/Dockerfile
+    <<: *common
+    ports:
+      - "8012:8012"
+    environment:
+      PYTHONPATH: /app
+
+  execution-engine:
+    build:
+      context: ../../
+      dockerfile: apps/execution_engine/Dockerfile
+    <<: *common
+    ports:
+      - "8013:8013"
+    environment:
+      PYTHONPATH: /app
+      RESEARCH_AGENT_URL: http://research-agent:8010
+      CONTENT_AGENT_URL: http://content-agent:8011
+      MOTION_ENGINE_URL: http://motion-engine:8012
+      NOTIFICATION_SERVICE_URL: http://notification-service:8009
+      ORDIBL_ADAPTER_URL: http://ordibl-adapter:8002
+      INTEGRATION_SERVICE_URL: http://integration-service:8005
+      MEMORY_SERVICE_URL: http://memory-service:8004
+    depends_on:
+      - research-agent
+      - content-agent
+      - motion-engine
+      - notification-service
+      - ordibl-adapter
+      - integration-service
+      - memory-service
+
   worker:
     build:
       context: ../../

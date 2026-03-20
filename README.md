@@ -33,28 +33,57 @@ event-driven microservice platform.
                          │
 ┌────────────────────────▼────────────────────────────────────┐
 │                    API Gateway :8000                         │
-└──┬──────────┬──────────┬──────────┬──────────┬──────────────┘
-   │          │          │          │          │
-   ▼          ▼          ▼          ▼          ▼
-Agent      Workflow   Memory    Org       Auth
-Runtime    Engine     Service   Service   Service
-:8001      :8003      :8004     :8007     :8006
-   │          │          │
-   ▼          │          ▼
-Integration   │     ┌────────────────────┐
-Service       │     │  Redis   Postgres  │
-:8005         │     │  Qdrant            │
-   │          │     └────────────────────┘
-   ▼          ▼
-Ordibl     Analytics  Notification  Worker
-Adapter    :8008      :8009         (queue)
+└──┬──────┬──────┬──────┬──────┬──────┬──────┬──────┬────────┘
+   │      │      │      │      │      │      │      │
+   ▼      ▼      ▼      ▼      ▼      ▼      ▼      ▼
+Agent  Workflow Memory  Org   Auth  Research Content Motion
+Runtime Engine  Svc    Svc   Svc   Agent    Agent   Engine
+:8001  :8003   :8004  :8007 :8006 :8010    :8011   :8012
+   │      │      │                  │        │       │
+   ▼      │      ▼                  ▼        ▼       ▼
+Integ.    │   ┌──────────┐     ┌──────────────────────────┐
+Service   │   │ Redis    │     │   Execution Engine :8013 │
+:8005     │   │ Postgres │     └────────────┬─────────────┘
+   │      │   │ Qdrant   │                  │
+   ▼      ▼   └──────────┘                  ▼
+Ordibl  Analytics  Notification  Worker   Ordibl Voice
+Adapter :8008      :8009         (queue)   Infrastructure
 :8002
-   │
-   ▼
-Ordibl Voice Infrastructure
+```
+
+### Cognitive → Execution Stack
+
+```
+THINKING LAYER
+  [Research Agent :8010]  ← Intelligence ingestion (leads, market, signals)
+          ↓
+  [Content Agent :8011]   ← Content generation (emails, scripts, proposals)
+
+DECISION & PLANNING LAYER
+  [Motion Engine :8012]   ← Timing, channel selection, sequencing
+
+EXECUTION LAYER
+  [Execution Engine :8013] ← Real-world actions (send, call, book, invoice)
+
+INFRASTRUCTURE LAYER
+  [Ordibl + CRM + Payments + Memory]
+```
+
+**Full Runtime Pipeline:**
+```
+Trigger (lead / call / event)
+  → Research Agent (intelligence gathering)
+  → Content Agent (personalized content)
+  → Motion Engine (timing decision)
+  → Execution Engine (real-world action)
+  → Ordibl (voice interactions)
+  → Memory (system updates)
+  → Loop continues
 ```
 
 ## Services
+
+### Core Workforce OS
 
 | Service | Port | Description |
 |---------|------|-------------|
@@ -69,6 +98,15 @@ Ordibl Voice Infrastructure
 | **analytics-service** | 8008 | Metrics & observability |
 | **notification-service** | 8009 | Email / SMS / push notifications |
 | **worker** | — | Async queue consumer for background tasks |
+
+### Cognitive → Execution Stack
+
+| Service | Port | Layer | Description |
+|---------|------|-------|-------------|
+| **research-agent** | 8010 | Thinking | Lead enrichment, market research, competitor analysis, signal detection |
+| **content-agent** | 8011 | Thinking | Email writing, call scripts, proposals, SMS, follow-up sequences |
+| **motion-engine** | 8012 | Decision | Timing rules, channel selection, SLA enforcement, action sequencing |
+| **execution-engine** | 8013 | Execution | Action dispatch (send email, make call, update CRM, create invoice) |
 
 ## Agent Reasoning Loop
 
@@ -145,7 +183,11 @@ aiviraai/
 │   ├── organization_service/ # Tenant management
 │   ├── analytics_service/    # Metrics
 │   ├── notification_service/ # Outbound notifications
-│   └── worker/               # Async queue consumer
+│   ├── worker/               # Async queue consumer
+│   ├── research_agent/       # Cognitive Stack — intelligence ingestion
+│   ├── content_agent/        # Cognitive Stack — content generation
+│   ├── motion_engine/        # Cognitive Stack — timing & sequencing
+│   └── execution_engine/     # Cognitive Stack — action dispatch
 ├── packages/
 │   └── shared/               # Shared models, schemas, settings, events
 ├── infrastructure/
@@ -166,6 +208,7 @@ aiviraai/
 |----------|-------------|
 | [`docs/openapi.yaml`](docs/openapi.yaml) | Complete OpenAPI 3.0 spec for all APIs |
 | [`docs/diagrams/sequence-diagrams.md`](docs/diagrams/sequence-diagrams.md) | Mermaid sequence diagrams (voice call, sales follow-up, multi-agent orchestration) |
+| [`docs/diagrams/cognitive-pipeline.md`](docs/diagrams/cognitive-pipeline.md) | Cognitive → Execution Stack pipeline diagrams |
 | [`docs/schemas/database-schema.md`](docs/schemas/database-schema.md) | Full database schema with ER diagram |
 | [`docs/langgraph/agent-flow.md`](docs/langgraph/agent-flow.md) | LangGraph state graph definition |
 
@@ -184,9 +227,9 @@ kubectl apply -f infrastructure/k8s/
 helm install workforce-os infrastructure/helm/workforce-os/
 ```
 
-## Example End-to-End Flow
+## Example End-to-End Flows
 
-A customer calls a plumbing company using Workforce OS:
+### Inbound Voice Call (Existing)
 
 1. **Ordibl** receives call, streams transcript
 2. **Receptionist Agent** identifies intent (booking)
@@ -196,6 +239,18 @@ A customer calls a plumbing company using Workforce OS:
 6. **Support Agent** sends confirmation SMS
 7. **Memory** updated with customer preferences
 8. Workflow closed
+
+### Sales Lead Pipeline (Cognitive Stack)
+
+1. **Trigger** — new lead arrives via CRM or inbound call
+2. **Research Agent** — enriches lead (company size, pain points, decision maker)
+3. **Content Agent** — generates personalized email + call script + follow-up sequence
+4. **Motion Engine** — decides Day 0 email, Day 2 call, Day 5 SMS, Day 7 escalate
+5. **Execution Engine** — sends email via notification service
+6. **Motion Engine** — Day 2 fires, no reply detected
+7. **Execution Engine** — places call via Ordibl
+8. **Memory** — updated with call outcome
+9. Loop continues until meeting booked or sequence exhausted
 
 ## Generative AI Culture
 

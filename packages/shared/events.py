@@ -73,3 +73,37 @@ CUSTOMER_MEETING_BOOKED = "customer.meeting.booked"
 # ── Notifications ───────────────────────────────────────────────
 NOTIFICATION_EMAIL_SENT = "notification.email.sent"
 NOTIFICATION_SMS_SENT = "notification.sms.sent"
+
+# ── Cognitive → Execution Stack ────────────────────────────────
+# Research Agent
+RESEARCH_STARTED = "research.started"
+RESEARCH_COMPLETED = "research.completed"
+RESEARCH_FAILED = "research.failed"
+
+# Content Agent
+CONTENT_GENERATION_STARTED = "content.generation.started"
+CONTENT_GENERATION_COMPLETED = "content.generation.completed"
+CONTENT_GENERATION_FAILED = "content.generation.failed"
+
+# Motion Engine
+MOTION_SEQUENCE_CREATED = "motion.sequence.created"
+MOTION_SEQUENCE_STARTED = "motion.sequence.started"
+MOTION_STEP_SCHEDULED = "motion.step.scheduled"
+MOTION_STEP_EXECUTING = "motion.step.executing"
+MOTION_STEP_COMPLETED = "motion.step.completed"
+MOTION_STEP_FAILED = "motion.step.failed"
+MOTION_STEP_SKIPPED = "motion.step.skipped"
+MOTION_SEQUENCE_COMPLETED = "motion.sequence.completed"
+MOTION_SEQUENCE_CANCELLED = "motion.sequence.cancelled"
+
+# Execution Engine
+EXECUTION_REQUESTED = "execution.requested"
+EXECUTION_STARTED = "execution.started"
+EXECUTION_COMPLETED = "execution.completed"
+EXECUTION_FAILED = "execution.failed"
+EXECUTION_RETRYING = "execution.retrying"
+
+# Full Pipeline
+PIPELINE_STARTED = "pipeline.started"
+PIPELINE_COMPLETED = "pipeline.completed"
+PIPELINE_FAILED = "pipeline.failed"

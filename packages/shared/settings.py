@@ -19,6 +19,26 @@ class Settings(BaseSettings):
     analytics_service_port: int = 8008
     notification_service_port: int = 8009
 
+    # Research Agent settings
+    research_default_sources: str = "crm,memory,public_data"
+    research_max_results: int = 10
+    research_confidence_threshold: float = 0.3
+
+    # Content Agent settings
+    content_default_tone: str = "professional"
+    content_default_language: str = "en"
+    content_max_variants: int = 3
+
+    # Motion Engine settings
+    motion_default_sla_hours: int = 48
+    motion_max_sequence_steps: int = 20
+    motion_retry_delay_hours: int = 24
+
+    # Execution Engine settings
+    execution_max_retries: int = 3
+    execution_retry_backoff_seconds: float = 5.0
+    execution_idempotency_ttl_hours: int = 24
+
     # Infrastructure
     redis_url: str = "redis://redis:6379/0"
     postgres_dsn: str = "postgresql://postgres:postgres@postgres:5432/ordibl"
@@ -33,6 +53,20 @@ class Settings(BaseSettings):
     integration_service_url: str = "http://integration-service:8005"
     auth_service_url: str = "http://auth-service:8006"
     organization_service_url: str = "http://organization-service:8007"
+    analytics_service_url: str = "http://analytics-service:8008"
+    notification_service_url: str = "http://notification-service:8009"
+
+    # Cognitive → Execution Stack service URLs
+    research_agent_url: str = "http://research-agent:8010"
+    content_agent_url: str = "http://content-agent:8011"
+    motion_engine_url: str = "http://motion-engine:8012"
+    execution_engine_url: str = "http://execution-engine:8013"
+
+    # Cognitive Stack service ports
+    research_agent_port: int = 8010
+    content_agent_port: int = 8011
+    motion_engine_port: int = 8012
+    execution_engine_port: int = 8013
 
     # Auth
     jwt_secret: str = "change-me-in-production"

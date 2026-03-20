@@ -592,6 +592,226 @@ spec:
               memory: 1Gi
 
 ---
+# ── Research Agent (Cognitive Stack) ────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: research-agent
+  namespace: workforce-os
+  labels:
+    app: research-agent
+    layer: thinking
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: research-agent
+  template:
+    metadata:
+      labels:
+        app: research-agent
+        layer: thinking
+    spec:
+      containers:
+        - name: research-agent
+          image: workforce-os/research-agent:latest
+          ports:
+            - containerPort: 8010
+          env:
+            - name: PYTHONPATH
+              value: /app
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8010
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 200m
+              memory: 256Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: research-agent
+  namespace: workforce-os
+spec:
+  selector:
+    app: research-agent
+  ports:
+    - port: 8010
+      targetPort: 8010
+
+---
+# ── Content Agent (Cognitive Stack) ─────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: content-agent
+  namespace: workforce-os
+  labels:
+    app: content-agent
+    layer: thinking
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: content-agent
+  template:
+    metadata:
+      labels:
+        app: content-agent
+        layer: thinking
+    spec:
+      containers:
+        - name: content-agent
+          image: workforce-os/content-agent:latest
+          ports:
+            - containerPort: 8011
+          env:
+            - name: PYTHONPATH
+              value: /app
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8011
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 200m
+              memory: 256Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: content-agent
+  namespace: workforce-os
+spec:
+  selector:
+    app: content-agent
+  ports:
+    - port: 8011
+      targetPort: 8011
+
+---
+# ── Motion Engine (Cognitive Stack) ─────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: motion-engine
+  namespace: workforce-os
+  labels:
+    app: motion-engine
+    layer: decision
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: motion-engine
+  template:
+    metadata:
+      labels:
+        app: motion-engine
+        layer: decision
+    spec:
+      containers:
+        - name: motion-engine
+          image: workforce-os/motion-engine:latest
+          ports:
+            - containerPort: 8012
+          env:
+            - name: PYTHONPATH
+              value: /app
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8012
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 200m
+              memory: 256Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: motion-engine
+  namespace: workforce-os
+spec:
+  selector:
+    app: motion-engine
+  ports:
+    - port: 8012
+      targetPort: 8012
+
+---
+# ── Execution Engine (Cognitive Stack) ──────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: execution-engine
+  namespace: workforce-os
+  labels:
+    app: execution-engine
+    layer: execution
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: execution-engine
+  template:
+    metadata:
+      labels:
+        app: execution-engine
+        layer: execution
+    spec:
+      containers:
+        - name: execution-engine
+          image: workforce-os/execution-engine:latest
+          ports:
+            - containerPort: 8013
+          env:
+            - name: PYTHONPATH
+              value: /app
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8013
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 200m
+              memory: 256Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: execution-engine
+  namespace: workforce-os
+spec:
+  selector:
+    app: execution-engine
+  ports:
+    - port: 8013
+      targetPort: 8013
+
+---
 # ── NATS Event Bus ──────────────────────────────────────────
 apiVersion: apps/v1
 kind: Deployment
