@@ -562,3 +562,237 @@ class AgentMetricsSummary(BaseModel):
     success_rate: float = 0.0
     period_start: datetime
     period_end: datetime
+
+
+# ══════════════════════════════════════════════════════════════════
+# Cognitive → Execution Stack models
+# ══════════════════════════════════════════════════════════════════
+
+# ── Research Agent (Thinking Layer) ──────────────────────────────
+
+class ResearchType(str, Enum):
+    LEAD_ENRICHMENT = "lead_enrichment"
+    MARKET_RESEARCH = "market_research"
+    COMPETITOR_ANALYSIS = "competitor_analysis"
+    CUSTOMER_PROFILING = "customer_profiling"
+    SIGNAL_DETECTION = "signal_detection"
+
+
+class ResearchRequest(BaseModel):
+    """Request to the Research Agent for intelligence gathering."""
+    organization_id: str
+    research_type: ResearchType
+    query: str
+    target: Optional[str] = None  # company name, lead name, industry
+    data_sources: List[str] = Field(
+        default_factory=lambda: ["crm", "memory", "public_data"]
+    )
+    max_results: int = 10
+    context: Dict[str, Any] = Field(default_factory=dict)
+
+
+class LeadIntelligence(BaseModel):
+    """Structured intelligence object produced by the Research Agent."""
+    lead_name: str
+    company: Optional[str] = None
+    size: Optional[str] = None
+    industry: Optional[str] = None
+    pain_points: List[str] = Field(default_factory=list)
+    decision_maker: Optional[str] = None
+    recommended_pitch: Optional[str] = None
+    contact_channels: List[str] = Field(default_factory=list)
+    urgency_score: float = 0.5  # 0.0–1.0
+    intent_signals: List[str] = Field(default_factory=list)
+
+
+class ResearchResponse(BaseModel):
+    """Response from the Research Agent."""
+    research_id: str
+    organization_id: str
+    research_type: ResearchType
+    status: str  # completed | partial | failed
+    intelligence: Dict[str, Any] = Field(default_factory=dict)
+    lead_intelligence: Optional[LeadIntelligence] = None
+    sources_consulted: List[str] = Field(default_factory=list)
+    confidence_score: float = 0.0
+    created_at: datetime
+
+
+# ── Content Agent (Thinking Layer) ───────────────────────────────
+
+class ContentType(str, Enum):
+    EMAIL = "email"
+    CALL_SCRIPT = "call_script"
+    SMS = "sms"
+    PROPOSAL = "proposal"
+    FOLLOW_UP = "follow_up"
+    MARKETING_CAMPAIGN = "marketing_campaign"
+    MEETING_AGENDA = "meeting_agenda"
+
+
+class ContentRequest(BaseModel):
+    """Request to the Content Agent for content generation."""
+    organization_id: str
+    content_type: ContentType
+    purpose: str
+    recipient: Optional[str] = None
+    tone: str = "professional"
+    intelligence: Dict[str, Any] = Field(default_factory=dict)  # from Research Agent
+    context: Dict[str, Any] = Field(default_factory=dict)
+    template_id: Optional[str] = None
+    max_length: Optional[int] = None
+    language: str = "en"
+
+
+class GeneratedContent(BaseModel):
+    """A single piece of generated content."""
+    content_type: ContentType
+    subject: Optional[str] = None
+    body: str
+    call_to_action: Optional[str] = None
+    personalization_fields: Dict[str, str] = Field(default_factory=dict)
+    metadata: Dict[str, Any] = Field(default_factory=dict)
+
+
+class ContentResponse(BaseModel):
+    """Response from the Content Agent."""
+    content_id: str
+    organization_id: str
+    content_type: ContentType
+    status: str  # generated | failed
+    content: Optional[GeneratedContent] = None
+    variants: List[GeneratedContent] = Field(default_factory=list)
+    intelligence_used: Dict[str, Any] = Field(default_factory=dict)
+    created_at: datetime
+
+
+# ── Motion Engine (Decision & Planning Layer) ────────────────────
+
+class MotionChannel(str, Enum):
+    EMAIL = "email"
+    VOICE = "voice"
+    SMS = "sms"
+    WHATSAPP = "whatsapp"
+    API = "api"
+
+
+class MotionStepStatus(str, Enum):
+    PENDING = "pending"
+    SCHEDULED = "scheduled"
+    EXECUTING = "executing"
+    COMPLETED = "completed"
+    SKIPPED = "skipped"
+    FAILED = "failed"
+
+
+class MotionStep(BaseModel):
+    """A single step in a motion sequence."""
+    step_id: str
+    day_offset: int  # Day 0, Day 2, Day 5, etc.
+    channel: MotionChannel
+    action: str  # send_email, make_call, send_sms, etc.
+    condition: Optional[str] = None  # "if_no_reply", "if_opened", etc.
+    content_type: Optional[ContentType] = None
+    fallback_action: Optional[str] = None
+    max_retries: int = 1
+    timeout_hours: int = 24
+
+
+class MotionSequenceCreate(BaseModel):
+    """Create a timed action sequence (the decision brain)."""
+    organization_id: str
+    name: str
+    description: Optional[str] = None
+    trigger_event: str  # lead_created, call_ended, etc.
+    target_id: str  # lead_id, customer_id, etc.
+    target_type: str  # lead, customer, deal
+    steps: List[MotionStep]
+    priority: int = 5
+    sla_hours: Optional[int] = None
+    context: Dict[str, Any] = Field(default_factory=dict)
+
+
+class MotionSequenceResponse(BaseModel):
+    """Response for a motion sequence."""
+    sequence_id: str
+    organization_id: str
+    name: str
+    status: str  # active | paused | completed | cancelled
+    current_step: Optional[str] = None
+    steps: List[MotionStep]
+    step_results: Dict[str, Any] = Field(default_factory=dict)
+    started_at: Optional[datetime] = None
+    next_action_at: Optional[datetime] = None
+    completed_at: Optional[datetime] = None
+    created_at: datetime
+
+
+# ── Execution Engine (Execution Layer) ───────────────────────────
+
+class ExecutionActionType(str, Enum):
+    SEND_EMAIL = "send_email"
+    MAKE_CALL = "make_call"
+    SEND_SMS = "send_sms"
+    UPDATE_CRM = "update_crm"
+    CREATE_INVOICE = "create_invoice"
+    TRIGGER_PAYMENT = "trigger_payment"
+    SCHEDULE_MEETING = "schedule_meeting"
+    SEND_WHATSAPP = "send_whatsapp"
+    WEBHOOK = "webhook"
+
+
+class ExecutionRequest(BaseModel):
+    """Request to the Execution Engine to perform a real-world action."""
+    organization_id: str
+    action_type: ExecutionActionType
+    target: Dict[str, Any]  # who/what to act on
+    content: Dict[str, Any] = Field(default_factory=dict)  # from Content Agent
+    channel: Optional[MotionChannel] = None
+    priority: int = 5
+    idempotency_key: Optional[str] = None
+    motion_sequence_id: Optional[str] = None
+    motion_step_id: Optional[str] = None
+    context: Dict[str, Any] = Field(default_factory=dict)
+
+
+class ExecutionResult(BaseModel):
+    """Result from the Execution Engine after performing an action."""
+    execution_id: str
+    organization_id: str
+    action_type: ExecutionActionType
+    status: str  # success | failed | pending | retrying
+    result: Dict[str, Any] = Field(default_factory=dict)
+    external_ref: Optional[str] = None  # external system reference
+    duration_ms: int = 0
+    retries: int = 0
+    error: Optional[str] = None
+    executed_at: datetime
+
+
+# ── Full Pipeline (Cognitive → Execution) ────────────────────────
+
+class CognitivePipelineRequest(BaseModel):
+    """End-to-end pipeline: Research → Content → Motion → Execute."""
+    organization_id: str
+    trigger_event: str
+    target_id: str
+    target_type: str = "lead"
+    goal: str
+    research_type: ResearchType = ResearchType.LEAD_ENRICHMENT
+    content_types: List[ContentType] = Field(
+        default_factory=lambda: [ContentType.EMAIL]
+    )
+    motion_steps: Optional[List[MotionStep]] = None  # auto-generated if None
+    context: Dict[str, Any] = Field(default_factory=dict)
+
+
+class CognitivePipelineResponse(BaseModel):
+    """Response from the full cognitive pipeline."""
+    pipeline_id: str
+    organization_id: str
+    status: str  # running | completed | failed
+    research: Optional[ResearchResponse] = None
+    content: List[ContentResponse] = Field(default_factory=list)
+    motion_sequence: Optional[MotionSequenceResponse] = None
+    executions: List[ExecutionResult] = Field(default_factory=list)
+    created_at: datetime

@@ -49,6 +49,24 @@ PATCH /v1/customers/{customer_id}
 
 POST  /v1/approvals/{approval_id}/decision
 GET   /v1/approvals
+
+# ── Cognitive → Execution Stack ─────────────────────────────────
+POST  /v1/research/investigate
+POST  /v1/research/enrich-lead
+GET   /v1/research/{research_id}
+
+POST  /v1/content/generate
+POST  /v1/content/generate-sequence
+GET   /v1/content/{content_id}
+
+POST  /v1/motion/sequences
+GET   /v1/motion/sequences/{sequence_id}
+POST  /v1/motion/sequences/{sequence_id}/advance
+POST  /v1/motion/decide
+
+POST  /v1/execution/execute
+GET   /v1/execution/{execution_id}
+POST  /v1/pipeline/run
 """
 
 from fastapi import FastAPI, HTTPException
@@ -57,10 +75,15 @@ import httpx
 from packages.shared.models import (
     AgentCreate,
     ApprovalDecision,
+    CognitivePipelineRequest,
+    ContentRequest,
     CustomerCreate,
     CustomerUpdate,
+    ExecutionRequest,
     LoginRequest,
     MemoryRetrievalRequest,
+    MotionSequenceCreate,
+    ResearchRequest,
     TaskRequest,
     UserCreate,
     VoiceCallRequest,
@@ -529,4 +552,231 @@ async def decide_approval(approval_id: str, decision: ApprovalDecision) -> dict:
         except httpx.HTTPError as exc:
             raise HTTPException(
                 status_code=502, detail=f"Workflow engine unavailable: {exc}"
+            )
+
+
+# ── Cognitive → Execution Stack ─────────────────────────────────
+# Research Agent (Thinking Layer)
+
+@app.post("/v1/research/investigate")
+async def investigate(request: ResearchRequest) -> dict:
+    async with httpx.AsyncClient(timeout=TIMEOUT) as client:
+        try:
+            response = await client.post(
+                f"{settings.research_agent_url}/internal/research/investigate",
+                json=request.model_dump(),
+            )
+            response.raise_for_status()
+            return response.json()
+        except httpx.HTTPError as exc:
+            raise HTTPException(
+                status_code=502, detail=f"Research agent unavailable: {exc}"
+            )
+
+
+@app.post("/v1/research/enrich-lead")
+async def enrich_lead(request: ResearchRequest) -> dict:
+    async with httpx.AsyncClient(timeout=TIMEOUT) as client:
+        try:
+            response = await client.post(
+                f"{settings.research_agent_url}/internal/research/enrich-lead",
+                json=request.model_dump(),
+            )
+            response.raise_for_status()
+            return response.json()
+        except httpx.HTTPError as exc:
+            raise HTTPException(
+                status_code=502, detail=f"Research agent unavailable: {exc}"
+            )
+
+
+@app.get("/v1/research/{research_id}")
+async def get_research(research_id: str) -> dict:
+    async with httpx.AsyncClient(timeout=TIMEOUT) as client:
+        try:
+            response = await client.get(
+                f"{settings.research_agent_url}/internal/research/{research_id}",
+            )
+            response.raise_for_status()
+            return response.json()
+        except httpx.HTTPError as exc:
+            raise HTTPException(
+                status_code=502, detail=f"Research agent unavailable: {exc}"
+            )
+
+
+# Content Agent (Thinking Layer)
+
+@app.post("/v1/content/generate")
+async def generate_content(request: ContentRequest) -> dict:
+    async with httpx.AsyncClient(timeout=TIMEOUT) as client:
+        try:
+            response = await client.post(
+                f"{settings.content_agent_url}/internal/content/generate",
+                json=request.model_dump(),
+            )
+            response.raise_for_status()
+            return response.json()
+        except httpx.HTTPError as exc:
+            raise HTTPException(
+                status_code=502, detail=f"Content agent unavailable: {exc}"
+            )
+
+
+@app.post("/v1/content/generate-sequence")
+async def generate_content_sequence(request: ContentRequest) -> dict:
+    async with httpx.AsyncClient(timeout=TIMEOUT) as client:
+        try:
+            response = await client.post(
+                f"{settings.content_agent_url}/internal/content/generate-sequence",
+                json=request.model_dump(),
+            )
+            response.raise_for_status()
+            return response.json()
+        except httpx.HTTPError as exc:
+            raise HTTPException(
+                status_code=502, detail=f"Content agent unavailable: {exc}"
+            )
+
+
+@app.get("/v1/content/{content_id}")
+async def get_content(content_id: str) -> dict:
+    async with httpx.AsyncClient(timeout=TIMEOUT) as client:
+        try:
+            response = await client.get(
+                f"{settings.content_agent_url}/internal/content/{content_id}",
+            )
+            response.raise_for_status()
+            return response.json()
+        except httpx.HTTPError as exc:
+            raise HTTPException(
+                status_code=502, detail=f"Content agent unavailable: {exc}"
+            )
+
+
+# Motion Engine (Decision & Planning Layer)
+
+@app.post("/v1/motion/sequences")
+async def create_motion_sequence(request: MotionSequenceCreate) -> dict:
+    async with httpx.AsyncClient(timeout=TIMEOUT) as client:
+        try:
+            response = await client.post(
+                f"{settings.motion_engine_url}/internal/motion/sequences",
+                json=request.model_dump(),
+            )
+            response.raise_for_status()
+            return response.json()
+        except httpx.HTTPError as exc:
+            raise HTTPException(
+                status_code=502, detail=f"Motion engine unavailable: {exc}"
+            )
+
+
+@app.get("/v1/motion/sequences/{sequence_id}")
+async def get_motion_sequence(sequence_id: str) -> dict:
+    async with httpx.AsyncClient(timeout=TIMEOUT) as client:
+        try:
+            response = await client.get(
+                f"{settings.motion_engine_url}/internal/motion/sequences/{sequence_id}",
+            )
+            response.raise_for_status()
+            return response.json()
+        except httpx.HTTPError as exc:
+            raise HTTPException(
+                status_code=502, detail=f"Motion engine unavailable: {exc}"
+            )
+
+
+@app.post("/v1/motion/sequences/{sequence_id}/advance")
+async def advance_motion_sequence(sequence_id: str) -> dict:
+    async with httpx.AsyncClient(timeout=TIMEOUT) as client:
+        try:
+            response = await client.post(
+                f"{settings.motion_engine_url}/internal/motion/sequences/{sequence_id}/advance",
+            )
+            response.raise_for_status()
+            return response.json()
+        except httpx.HTTPError as exc:
+            raise HTTPException(
+                status_code=502, detail=f"Motion engine unavailable: {exc}"
+            )
+
+
+@app.post("/v1/motion/decide")
+async def motion_decide(
+    organization_id: str,
+    lead_id: str,
+    urgency_score: float = 0.5,
+) -> dict:
+    async with httpx.AsyncClient(timeout=TIMEOUT) as client:
+        try:
+            response = await client.post(
+                f"{settings.motion_engine_url}/internal/motion/decide",
+                params={
+                    "organization_id": organization_id,
+                    "lead_id": lead_id,
+                    "urgency_score": urgency_score,
+                },
+            )
+            response.raise_for_status()
+            return response.json()
+        except httpx.HTTPError as exc:
+            raise HTTPException(
+                status_code=502, detail=f"Motion engine unavailable: {exc}"
+            )
+
+
+# Execution Engine (Execution Layer)
+
+@app.post("/v1/execution/execute")
+async def execute_action(request: ExecutionRequest) -> dict:
+    async with httpx.AsyncClient(timeout=TIMEOUT) as client:
+        try:
+            response = await client.post(
+                f"{settings.execution_engine_url}/internal/execution/execute",
+                json=request.model_dump(),
+            )
+            response.raise_for_status()
+            return response.json()
+        except httpx.HTTPError as exc:
+            raise HTTPException(
+                status_code=502, detail=f"Execution engine unavailable: {exc}"
+            )
+
+
+@app.get("/v1/execution/{execution_id}")
+async def get_execution(execution_id: str) -> dict:
+    async with httpx.AsyncClient(timeout=TIMEOUT) as client:
+        try:
+            response = await client.get(
+                f"{settings.execution_engine_url}/internal/execution/{execution_id}",
+            )
+            response.raise_for_status()
+            return response.json()
+        except httpx.HTTPError as exc:
+            raise HTTPException(
+                status_code=502, detail=f"Execution engine unavailable: {exc}"
+            )
+
+
+# Full Cognitive Pipeline
+
+@app.post("/v1/pipeline/run")
+async def run_cognitive_pipeline(request: CognitivePipelineRequest) -> dict:
+    """Run the full Cognitive → Execution pipeline end-to-end.
+
+    Trigger → Research Agent → Content Agent → Motion Engine
+    → Execution Engine → Ordibl → Memory → Loop continues.
+    """
+    async with httpx.AsyncClient(timeout=TIMEOUT) as client:
+        try:
+            response = await client.post(
+                f"{settings.execution_engine_url}/internal/execution/pipeline",
+                json=request.model_dump(),
+            )
+            response.raise_for_status()
+            return response.json()
+        except httpx.HTTPError as exc:
+            raise HTTPException(
+                status_code=502, detail=f"Execution engine unavailable: {exc}"
             )

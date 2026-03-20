@@ -106,6 +106,35 @@ services:
       requests: { cpu: 100m, memory: 128Mi }
       limits:   { cpu: 500m, memory: 256Mi }
 
+  # Cognitive → Execution Stack
+  researchAgent:
+    replicas: 2
+    port: 8010
+    resources:
+      requests: { cpu: 200m, memory: 256Mi }
+      limits:   { cpu: "1", memory: 1Gi }
+
+  contentAgent:
+    replicas: 2
+    port: 8011
+    resources:
+      requests: { cpu: 200m, memory: 256Mi }
+      limits:   { cpu: "1", memory: 1Gi }
+
+  motionEngine:
+    replicas: 2
+    port: 8012
+    resources:
+      requests: { cpu: 200m, memory: 256Mi }
+      limits:   { cpu: "1", memory: 1Gi }
+
+  executionEngine:
+    replicas: 2
+    port: 8013
+    resources:
+      requests: { cpu: 200m, memory: 256Mi }
+      limits:   { cpu: "1", memory: 1Gi }
+
   worker:
     replicas: 3
     resources:

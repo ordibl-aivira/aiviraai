@@ -1,0 +1,47 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: research-agent
+  labels:
+    app: research-agent
+    layer: thinking
+    {{- include "workforce-os.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.services.researchAgent.replicas }}
+  selector:
+    matchLabels:
+      app: research-agent
+  template:
+    metadata:
+      labels:
+        app: research-agent
+        layer: thinking
+    spec:
+      containers:
+        - name: research-agent
+          image: {{ include "workforce-os.image" (dict "Values" .Values "svc" "research-agent") }}
+          imagePullPolicy: {{ .Values.global.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.services.researchAgent.port }}
+          env:
+            - name: PYTHONPATH
+              value: /app
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: {{ .Values.services.researchAgent.port }}
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            {{- toYaml .Values.services.researchAgent.resources | nindent 12 }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: research-agent
+spec:
+  selector:
+    app: research-agent
+  ports:
+    - port: {{ .Values.services.researchAgent.port }}
+      targetPort: {{ .Values.services.researchAgent.port }}
