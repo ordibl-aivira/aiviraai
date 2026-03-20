@@ -38,6 +38,8 @@ from uuid import uuid4
 
 from fastapi import FastAPI, HTTPException
 
+from pydantic import BaseModel
+
 from packages.shared.models import (
     MotionChannel,
     MotionSequenceCreate,
@@ -45,6 +47,12 @@ from packages.shared.models import (
     MotionStepStatus,
 )
 from packages.shared.settings import settings
+
+
+class DecideRequest(BaseModel):
+    """Request body for the /decide endpoint."""
+    signals: Optional[List[str]] = None
+    available_channels: Optional[List[str]] = None
 
 app = FastAPI(title="Motion Engine", version="0.1.0")
 
@@ -310,16 +318,15 @@ def decide_next_action(
     organization_id: str,
     lead_id: str,
     urgency_score: float = 0.5,
-    signals: Optional[List[str]] = None,
-    available_channels: Optional[List[str]] = None,
+    body: Optional[DecideRequest] = None,
 ) -> dict:
     """Decide the optimal next action, channel, and timing.
 
     Uses urgency signals and channel availability to recommend the best
     next action for a lead.
     """
-    signals = signals or []
-    available = available_channels or [
+    signals = (body.signals if body and body.signals else []) or []
+    available = (body.available_channels if body and body.available_channels else None) or [
         MotionChannel.EMAIL.value,
         MotionChannel.VOICE.value,
         MotionChannel.SMS.value,

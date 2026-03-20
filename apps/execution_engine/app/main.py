@@ -624,6 +624,7 @@ async def _call_content_agent(
     content_req = {
         "organization_id": request.organization_id,
         "content_type": "email",
+        "purpose": "sales outreach",
         "intelligence": intelligence,
         "recipient": request.lead_id,
         "context": request.trigger_data,
@@ -660,22 +661,21 @@ async def _call_motion_engine(
         urgency_score = lead_intel.get("urgency_score", 0.5)
         signals = lead_intel.get("intent_signals", [])
 
-    params = {
+    query_params = {
         "organization_id": request.organization_id,
         "lead_id": request.lead_id or "",
         "urgency_score": urgency_score,
+    }
+    body = {
         "signals": signals,
+        "available_channels": ["email", "voice", "sms"],
     }
     try:
         async with httpx.AsyncClient(timeout=10.0) as client:
             resp = await client.post(
                 f"{settings.motion_engine_url}/internal/motion/decide",
-                params={
-                    "organization_id": params["organization_id"],
-                    "lead_id": params["lead_id"],
-                    "urgency_score": params["urgency_score"],
-                },
-                json=params.get("signals"),
+                params=query_params,
+                json=body,
             )
             if resp.status_code == 200:
                 return resp.json()

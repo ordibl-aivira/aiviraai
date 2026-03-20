@@ -687,11 +687,11 @@ class MotionStepStatus(str, Enum):
 
 class MotionStep(BaseModel):
     """A single step in a motion sequence."""
-    step_id: str
-    day_offset: int  # Day 0, Day 2, Day 5, etc.
+    step_order: int  # 1, 2, 3, etc.
     channel: MotionChannel
     action: str  # send_email, make_call, send_sms, etc.
-    condition: Optional[str] = None  # "if_no_reply", "if_opened", etc.
+    delay_hours: int = 0  # hours to wait before executing (0, 48, 120, etc.)
+    condition: Optional[str] = None  # "no_reply", "positive_sentiment", etc.
     content_type: Optional[ContentType] = None
     fallback_action: Optional[str] = None
     max_retries: int = 1
@@ -701,13 +701,12 @@ class MotionStep(BaseModel):
 class MotionSequenceCreate(BaseModel):
     """Create a timed action sequence (the decision brain)."""
     organization_id: str
-    name: str
+    name: Optional[str] = None
     description: Optional[str] = None
-    trigger_event: str  # lead_created, call_ended, etc.
-    target_id: str  # lead_id, customer_id, etc.
-    target_type: str  # lead, customer, deal
-    steps: List[MotionStep]
-    priority: int = 5
+    lead_id: Optional[str] = None  # target lead for the sequence
+    template_id: Optional[str] = None  # e.g. "sales_outreach", "urgent_response"
+    steps: Optional[List[MotionStep]] = None  # auto-generated from template if None
+    priority: Optional[int] = 5
     sla_hours: Optional[int] = None
     context: Dict[str, Any] = Field(default_factory=dict)
 
@@ -745,13 +744,11 @@ class ExecutionRequest(BaseModel):
     """Request to the Execution Engine to perform a real-world action."""
     organization_id: str
     action_type: ExecutionActionType
-    target: Dict[str, Any]  # who/what to act on
-    content: Dict[str, Any] = Field(default_factory=dict)  # from Content Agent
-    channel: Optional[MotionChannel] = None
-    priority: int = 5
+    parameters: Dict[str, Any] = Field(default_factory=dict)  # action-specific params
+    content: Any = None  # content from Content Agent
+    recipient: Optional[str] = None  # who to act on
     idempotency_key: Optional[str] = None
-    motion_sequence_id: Optional[str] = None
-    motion_step_id: Optional[str] = None
+    update_memory: bool = False  # whether to persist to memory service
     context: Dict[str, Any] = Field(default_factory=dict)
 
 
@@ -774,15 +771,9 @@ class ExecutionResult(BaseModel):
 class CognitivePipelineRequest(BaseModel):
     """End-to-end pipeline: Research → Content → Motion → Execute."""
     organization_id: str
-    trigger_event: str
-    target_id: str
-    target_type: str = "lead"
-    goal: str
-    research_type: ResearchType = ResearchType.LEAD_ENRICHMENT
-    content_types: List[ContentType] = Field(
-        default_factory=lambda: [ContentType.EMAIL]
-    )
-    motion_steps: Optional[List[MotionStep]] = None  # auto-generated if None
+    trigger_type: str  # e.g. "new_lead", "inbound_call", "form_submission"
+    trigger_data: Dict[str, Any] = Field(default_factory=dict)
+    lead_id: Optional[str] = None  # target lead
     context: Dict[str, Any] = Field(default_factory=dict)
 
 
