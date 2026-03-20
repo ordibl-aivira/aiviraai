@@ -281,7 +281,7 @@ async def _send_email(
                 json={
                     "organization_id": organization_id,
                     "channel": "email",
-                    "recipient": recipient or parameters.get("recipient", ""),
+                    "to": recipient or parameters.get("recipient", ""),
                     "subject": subject,
                     "body": body,
                 },
@@ -366,7 +366,7 @@ async def _send_sms(
                 json={
                     "organization_id": organization_id,
                     "channel": "sms",
-                    "recipient": recipient or parameters.get("phone", ""),
+                    "to": recipient or parameters.get("phone", ""),
                     "body": body,
                 },
             )
@@ -773,13 +773,13 @@ async def _update_memory(
     try:
         async with httpx.AsyncClient(timeout=10.0) as client:
             await client.post(
-                f"{settings.memory_service_url}/internal/memory/episodic",
+                f"{settings.memory_service_url}/internal/memory/episodes",
                 json={
                     "organization_id": organization_id,
                     "agent_id": "agt_exec_001",
-                    "episode_type": "execution",
+                    "episode_type": "tool_call",
                     "summary": f"Execution {reference_id} completed",
-                    "data": data,
+                    "raw_event": data,
                 },
             )
     except httpx.HTTPError:
