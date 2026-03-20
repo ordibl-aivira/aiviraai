@@ -121,6 +121,18 @@ async def advance_workflow(workflow_id: str) -> dict:
 
     execution["status"] = WorkflowStatus.RUNNING.value
 
+    # Mark the approval-gated step as completed so the DAG walker
+    # doesn't re-encounter it and pause again.
+    paused_step_id = execution.get("current_step")
+    if paused_step_id:
+        step_results = execution.get("step_results", {})
+        if paused_step_id not in step_results:
+            step_results[paused_step_id] = {
+                "status": "approved",
+                "approved_at": datetime.utcnow().isoformat(),
+            }
+            execution["step_results"] = step_results
+
     # Re-execute remaining DAG steps from where we left off
     await _walk_dag(wf, execution)
     return execution
