@@ -1,0 +1,35 @@
+{
+  "name": "@workspace/api-server",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "nest start --watch",
+    "build": "nest build",
+    "start": "node dist/main",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@elevenlabs/elevenlabs-js": "^2.39.0",
+    "@nestjs/common": "^10.0.0",
+    "@nestjs/core": "^10.0.0",
+    "@nestjs/platform-express": "^10.0.0",
+    "@workspace/api-zod": "workspace:*",
+    "@workspace/db": "workspace:*",
+    "axios": "^1.13.6",
+    "connect-pg-simple": "^10.0.0",
+    "drizzle-orm": "catalog:",
+    "express-session": "^1.19.0",
+    "reflect-metadata": "^0.2.0",
+    "rxjs": "^7.8.1"
+  },
+  "devDependencies": {
+    "@nestjs/cli": "^10.0.0",
+    "@nestjs/schematics": "^10.0.0",
+    "@types/connect-pg-simple": "^7.0.3",
+    "@types/express": "^5.0.6",
+    "@types/express-session": "^1.18.1",
+    "@types/node": "catalog:",
+    "ts-loader": "^9.5.2",
+    "typescript": "^5.7.3"
+  }
+}
